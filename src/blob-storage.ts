@@ -45,10 +45,23 @@ export async function getJsonFromBlob<T>(pathname: string): Promise<T | undefine
     return undefined;
   }
 
-  const result = await get(pathname, {
-    access: "public",
-    useCache: false
-  });
+  let result;
+
+  try {
+    result = await get(pathname, {
+      access: "public",
+      useCache: false
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Blob read error";
+
+    if (message.includes("404") || message.includes("not found")) {
+      return undefined;
+    }
+
+    console.warn(`Could not read Blob JSON ${pathname}: ${message}`);
+    return undefined;
+  }
 
   if (!result || result.statusCode !== 200) {
     return undefined;

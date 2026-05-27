@@ -167,32 +167,45 @@ function applyUserData(profile: ProfileSnapshot, type: UserDataType, value: stri
 }
 
 async function markSeen(fid: number) {
-  if (config.cloudStorageOnly) {
-    await markCloudFidSeen(fid);
-    return;
-  }
+  try {
+    if (config.cloudStorageOnly) {
+      await markCloudFidSeen(fid);
+      return;
+    }
 
-  const { markFidSeen } = await import("./db.js");
-  markFidSeen(fid);
+    const { markFidSeen } = await import("./db.js");
+    markFidSeen(fid);
+  } catch (error) {
+    console.warn(`Could not mark fid ${fid} seen: ${errorMessage(error)}`);
+  }
 }
 
 async function markFetched(fid: number) {
-  if (config.cloudStorageOnly) {
-    await markCloudProfileFetched(fid);
-    return;
-  }
+  try {
+    if (config.cloudStorageOnly) {
+      await markCloudProfileFetched(fid);
+      return;
+    }
 
-  const { markProfileFetched } = await import("./db.js");
-  markProfileFetched(fid);
+    const { markProfileFetched } = await import("./db.js");
+    markProfileFetched(fid);
+  } catch (error) {
+    console.warn(`Could not mark fid ${fid} fetched: ${errorMessage(error)}`);
+  }
 }
 
 async function shouldRefreshProfile(fid: number) {
-  if (config.cloudStorageOnly) {
-    return shouldFetchCloudProfile(fid, config.hubProfileRefreshIntervalMs);
-  }
+  try {
+    if (config.cloudStorageOnly) {
+      return shouldFetchCloudProfile(fid, config.hubProfileRefreshIntervalMs);
+    }
 
-  const { shouldFetchProfile } = await import("./db.js");
-  return shouldFetchProfile(fid, config.hubProfileRefreshIntervalMs);
+    const { shouldFetchProfile } = await import("./db.js");
+    return shouldFetchProfile(fid, config.hubProfileRefreshIntervalMs);
+  } catch (error) {
+    console.warn(`Could not check refresh state for fid ${fid}: ${errorMessage(error)}`);
+    return true;
+  }
 }
 
 async function postProfile(profile: ProfileSnapshot) {
@@ -240,4 +253,8 @@ function hubEventTypeName(type?: HubEventType) {
 
 function messageTypeName(type?: MessageType) {
   return type === undefined ? undefined : MessageType[type];
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown error";
 }
