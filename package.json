@@ -1,0 +1,35 @@
+{
+  "name": "farcaster-fid-kafka-logger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "start:hosted": "node scripts/start-hosted.mjs",
+    "build": "tsc",
+    "topics": "tsx src/setup-topics.ts",
+    "log:fids": "tsx src/log-unique-fids.ts",
+    "db:seed": "tsx src/seed-db.ts",
+    "monitor:neynar": "tsx src/monitor-neynar.ts",
+    "monitor:hub": "tsx src/monitor-hub.ts",
+    "web:dev": "npm --prefix web run dev -- -p 3001",
+    "web:build": "npm --prefix web run build"
+  },
+  "dependencies": {
+    "@farcaster/hub-nodejs": "^0.16.0",
+    "@vercel/blob": "^2.4.0",
+    "better-sqlite3": "^12.10.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "kafkajs": "^2.2.4",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

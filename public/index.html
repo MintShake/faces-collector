@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Farcaster PFP History</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>Farcaster PFP History</h1>
+          <p id="summary">Loading saved profile images...</p>
+        </div>
+        <div class="controls">
+          <input id="search" type="search" inputmode="numeric" placeholder="Filter by FID" />
+          <button id="refresh" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section id="empty" class="empty" hidden>
+        No saved PFPs yet.
+      </section>
+
+      <section id="gallery" class="gallery" aria-live="polite"></section>
+    </main>
+
+    <aside id="drawer" class="drawer" hidden>
+      <button id="closeDrawer" class="icon-button" type="button" aria-label="Close">x</button>
+      <div id="drawerContent"></div>
+    </aside>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

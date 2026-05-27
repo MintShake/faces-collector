@@ -1,0 +1,283 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f8f4;
+  --ink: #171815;
+  --muted: #62665c;
+  --line: #dfe4da;
+  --panel: #ffffff;
+  --accent: #0a7f71;
+  --accent-ink: #063d37;
+  --shadow: 0 18px 45px rgba(24, 31, 28, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.shell {
+  width: min(1440px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 24px 0 48px;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 0;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 36px);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+input {
+  width: min(280px, 40vw);
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+}
+
+button {
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent-ink);
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 14px;
+  padding-top: 18px;
+}
+
+.fid-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 1px 0 rgba(20, 24, 20, 0.03);
+  overflow: hidden;
+}
+
+.fid-button {
+  width: 100%;
+  height: auto;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.fid-button:hover {
+  background: #f1f5ee;
+}
+
+.stack {
+  position: relative;
+  width: 92px;
+  height: 92px;
+}
+
+.stack img {
+  position: absolute;
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border: 3px solid #fff;
+  border-radius: 8px;
+  background: #e7ebe4;
+  box-shadow: 0 8px 18px rgba(20, 24, 20, 0.15);
+}
+
+.stack img:nth-child(1) {
+  left: 18px;
+  top: 0;
+  z-index: 3;
+}
+
+.stack img:nth-child(2) {
+  left: 9px;
+  top: 11px;
+  z-index: 2;
+}
+
+.stack img:nth-child(3) {
+  left: 0;
+  top: 22px;
+  z-index: 1;
+}
+
+.fid-meta {
+  min-width: 0;
+}
+
+.fid {
+  display: block;
+  font-size: 20px;
+  font-weight: 750;
+}
+
+.count,
+.date {
+  display: block;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.strip {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 14px;
+  overflow: hidden;
+}
+
+.strip img {
+  width: 30px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: #e7ebe4;
+}
+
+.empty {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 10;
+  width: min(520px, 100%);
+  padding: 18px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+}
+
+.icon-button {
+  position: sticky;
+  top: 0;
+  width: 40px;
+  float: right;
+  padding: 0;
+}
+
+.drawer h2 {
+  margin: 8px 48px 6px 0;
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.timeline {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.timeline a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.timeline img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #e7ebe4;
+}
+
+.stamp {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 720px) {
+  .shell {
+    width: min(100% - 20px, 1440px);
+    padding-top: 8px;
+  }
+
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .controls {
+    width: 100%;
+  }
+
+  input {
+    width: 100%;
+    flex: 1;
+  }
+
+  .gallery {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+data
+tmp
+.DS_Store
+web/node_modules
+web/.next
+web/.env*
+web/.vercel

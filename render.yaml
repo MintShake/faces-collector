@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: faces-collector
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: CLOUD_STORAGE_ONLY
+        value: "true"
+      - key: KAFKA_ENABLED
+        value: "false"
+      - key: BLOB_UPLOAD_ORIGINALS
+        value: "false"
+      - key: HUB_RPC_ENDPOINT
+        value: hub-grpc-api.neynar.com
+      - key: HUB_PROFILE_REFRESH_INTERVAL_MS
+        value: "3600000"
+      - key: NEYNAR_API_KEY
+        sync: false
+      - key: BLOB_READ_WRITE_TOKEN
+        sync: false
