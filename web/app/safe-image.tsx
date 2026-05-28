@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ImgHTMLAttributes } from "react";
+import { useEffect, useMemo, useState, type ImgHTMLAttributes } from "react";
 
 type SafeImageProps = ImgHTMLAttributes<HTMLImageElement> & {
   fallbackSrc?: string;
@@ -12,11 +12,26 @@ export function SafeImage({
   className,
   ...props
 }: SafeImageProps) {
+  const [mounted, setMounted] = useState(false);
   const [failed, setFailed] = useState(false);
-  const activeSrc = failed ? fallbackSrc : src;
-  const imageClassName = failed
+
+  const shouldDeferRemote = useMemo(
+    () => typeof src === "string" && /^https?:\/\//.test(src),
+    [src]
+  );
+  const isUsingFallback = failed || (shouldDeferRemote && !mounted);
+  const activeSrc = isUsingFallback ? fallbackSrc : src;
+  const imageClassName = isUsingFallback
     ? [className, "imageFallback"].filter(Boolean).join(" ")
     : className;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
 
   return (
     <img
