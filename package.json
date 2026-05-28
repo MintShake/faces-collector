@@ -17,6 +17,7 @@
     "web:build": "npm --prefix web run build"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1055.0",
     "@farcaster/hub-nodejs": "^0.16.0",
     "@vercel/blob": "^2.4.0",
     "better-sqlite3": "^12.10.0",

@@ -1,3 +1,4 @@
+import { ListObjectsV2Command, S3Client, type S3ClientConfig } from "@aws-sdk/client-s3";
 import { list } from "@vercel/blob";
 
 export type PfpImage = {
@@ -90,6 +91,41 @@ async function getBlobPfpGallery() {
 }
 
 async function listAllBlobs(prefix: string) {
+  const s3 = s3Config();
+
+  if (s3) {
+    const blobs = [];
+    let continuationToken: string | undefined;
+
+    do {
+      const page = await s3.client.send(
+        new ListObjectsV2Command({
+          Bucket: s3.bucket,
+          Prefix: prefix,
+          MaxKeys: 1000,
+          ContinuationToken: continuationToken
+        })
+      );
+
+      for (const item of page.Contents ?? []) {
+        if (!item.Key) {
+          continue;
+        }
+
+        blobs.push({
+          pathname: item.Key,
+          url: publicObjectUrl(s3, item.Key),
+          size: item.Size ?? 0,
+          uploadedAt: item.LastModified ?? new Date(0)
+        });
+      }
+
+      continuationToken = page.NextContinuationToken;
+    } while (continuationToken);
+
+    return blobs;
+  }
+
   const blobs = [];
   let cursor: string | undefined;
 
@@ -105,6 +141,50 @@ async function listAllBlobs(prefix: string) {
   } while (cursor);
 
   return blobs;
+}
+
+let cachedS3Client: S3Client | undefined;
+
+function s3Config() {
+  const bucket = process.env.B2_BUCKET ?? process.env.S3_BUCKET;
+  const endpoint = process.env.B2_ENDPOINT ?? process.env.S3_ENDPOINT;
+  const region = process.env.B2_REGION ?? process.env.S3_REGION ?? "us-west-004";
+  const accessKeyId = process.env.B2_KEY_ID ?? process.env.S3_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.B2_APPLICATION_KEY ?? process.env.S3_SECRET_ACCESS_KEY;
+
+  if (!bucket || !endpoint || !accessKeyId || !secretAccessKey) {
+    return undefined;
+  }
+
+  const clientConfig: S3ClientConfig = {
+    endpoint,
+    region,
+    credentials: {
+      accessKeyId,
+      secretAccessKey
+    },
+    forcePathStyle: true
+  };
+
+  cachedS3Client ??= new S3Client(clientConfig);
+
+  return {
+    bucket,
+    endpoint,
+    publicBaseUrl: process.env.B2_PUBLIC_BASE_URL ?? process.env.S3_PUBLIC_BASE_URL,
+    client: cachedS3Client
+  };
+}
+
+function publicObjectUrl(
+  storage: { bucket: string; endpoint: string; publicBaseUrl?: string },
+  pathname: string
+) {
+  if (storage.publicBaseUrl) {
+    return `${storage.publicBaseUrl.replace(/\/$/, "")}/${pathname}`;
+  }
+
+  return `${storage.endpoint.replace(/\/$/, "")}/${storage.bucket}/${pathname}`;
 }
 
 function newestTime(tile: FidTile) {
