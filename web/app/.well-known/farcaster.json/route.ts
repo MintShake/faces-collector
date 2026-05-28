@@ -34,7 +34,8 @@ export function GET() {
       ogTitle: "Faces",
       ogDescription: "See your Farcaster PFP timeline.",
       ogImageUrl: `${appUrl}/miniapp/embed.png`,
-      requiredCapabilities: ["actions.ready"]
+      webhookUrl: `${appUrl}/api/miniapp/events`,
+      requiredCapabilities: ["actions.ready", "actions.addMiniApp"]
     }
   });
 }

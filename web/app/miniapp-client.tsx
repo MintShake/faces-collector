@@ -4,6 +4,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { FidTile } from "@/lib/pfps";
+import { AddAppButton } from "./add-app-button";
 import { FidCard } from "./fid-card";
 import { ShareButton } from "./share-button";
 
@@ -41,6 +42,16 @@ export function MiniAppHome({
             setUser(context.user);
           }
 
+          await fetch("/api/users", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              ...context.user,
+              notificationDetails: context.client.notificationDetails
+            })
+          });
           await sdk.actions.ready();
         }
       } catch {
@@ -76,6 +87,7 @@ export function MiniAppHome({
                 Browse timelines
               </Link>
             )}
+            {user && <AddAppButton user={user} />}
             <ShareButton fid={userTile?.fid} count={userTile?.images.length} />
           </div>
         </div>
@@ -170,10 +182,12 @@ function heroImages(tile?: FidTile) {
 
   return [
     {
+      id: "fallback",
       filename: "fallback",
       url: "/miniapp/icon.png",
       size: 0,
-      storedAt: new Date(0).toISOString()
+      storedAt: new Date(0).toISOString(),
+      likeCount: 0
     }
   ];
 }

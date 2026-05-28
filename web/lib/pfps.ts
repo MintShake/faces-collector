@@ -1,13 +1,16 @@
 import { ListObjectsV2Command, S3Client, type S3ClientConfig } from "@aws-sdk/client-s3";
 import { list } from "@vercel/blob";
+import { getLikeSummaryMap } from "./social";
 
 export type PfpImage = {
+  id: string;
   filename: string;
   url: string;
   thumbUrl?: string;
   mediumUrl?: string;
   size: number;
   storedAt: string;
+  likeCount: number;
 };
 
 export type FidTile = {
@@ -32,6 +35,7 @@ export async function getFidTile(fid: number): Promise<FidTile | undefined> {
 
 async function getBlobPfpGallery() {
   const blobs = await listAllBlobs("pfps/");
+  const likeSummary = await getLikeSummaryMap();
   const byFid = new Map<number, Map<string, Partial<PfpImage> & { filename: string; storedAt: string; size: number }>>();
 
   for (const blob of blobs) {
@@ -43,13 +47,16 @@ async function getBlobPfpGallery() {
 
     const fid = Number(match[1]);
     const basename = match[2];
+    const imageId = imageIdFor(fid, basename);
     const variant = match[3].toLowerCase() as "thumb" | "medium";
     const images = byFid.get(fid) ?? new Map();
     const image = images.get(basename) ?? {
+      id: imageId,
       filename: `${basename}.medium.webp`,
       url: blob.url,
       size: 0,
-      storedAt: storedAtFromFilename(basename) ?? blob.uploadedAt.toISOString()
+      storedAt: storedAtFromFilename(basename) ?? blob.uploadedAt.toISOString(),
+      likeCount: likeSummary[imageId]?.count ?? 0
     };
 
     image.size += blob.size;
@@ -196,6 +203,10 @@ function publicObjectUrl(
 
 function newestTime(tile: FidTile) {
   return Date.parse(tile.images[0]?.storedAt ?? "0");
+}
+
+function imageIdFor(fid: number, basename: string) {
+  return `${fid}/${basename}`;
 }
 
 function storedAtFromFilename(filename: string) {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFidTile } from "@/lib/pfps";
+import { LikePanel } from "../../like-panel";
 import { ShareButton } from "../../share-button";
 
 export const dynamic = "force-dynamic";
@@ -38,15 +39,18 @@ export default async function FidPage({
 
       <section className="historyGrid" aria-label={`PFP history for FID ${tile.fid}`}>
         {tile.images.map((image) => (
-          <a key={image.filename} className="historyItem" href={image.url} target="_blank" rel="noreferrer">
-            <img
-              src={image.url}
-              alt={`FID ${tile.fid} PFP logged ${formatDate(image.storedAt)}`}
-              loading="lazy"
-              decoding="async"
-            />
-            <span>{formatDate(image.storedAt)}</span>
-          </a>
+          <article key={image.filename} className="historyItem">
+            <a href={image.url} target="_blank" rel="noreferrer">
+              <img
+                src={image.url}
+                alt={`FID ${tile.fid} PFP logged ${formatDate(image.storedAt)}`}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>{formatDate(image.storedAt)}</span>
+            </a>
+            <LikePanel ownerFid={tile.fid} image={image} />
+          </article>
         ))}
       </section>
     </main>

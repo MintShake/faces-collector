@@ -4,12 +4,12 @@ import { useMemo, useState } from "react";
 import type { FidTile } from "@/lib/pfps";
 import { FidCard } from "./fid-card";
 
-type SortMode = "count" | "newest" | "oldest" | "fid";
+type SortMode = "likes" | "count" | "newest" | "oldest" | "fid";
 type SortDirection = "desc" | "asc";
 
 export function GalleryControls({ tiles }: { tiles: FidTile[] }) {
   const [query, setQuery] = useState("");
-  const [sortMode, setSortMode] = useState<SortMode>("count");
+  const [sortMode, setSortMode] = useState<SortMode>("likes");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [minimumCount, setMinimumCount] = useState(1);
 
@@ -40,6 +40,7 @@ export function GalleryControls({ tiles }: { tiles: FidTile[] }) {
         <label>
           <span>Sort</span>
           <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}>
+            <option value="likes">Likes</option>
             <option value="count">PFP count</option>
             <option value="newest">Newest update</option>
             <option value="oldest">Oldest update</option>
@@ -92,7 +93,9 @@ function compareTiles(
   const direction = sortDirection === "desc" ? -1 : 1;
   let result = 0;
 
-  if (sortMode === "count") {
+  if (sortMode === "likes") {
+    result = totalLikes(a) - totalLikes(b) || newestTime(a) - newestTime(b);
+  } else if (sortMode === "count") {
     result = a.images.length - b.images.length || newestTime(a) - newestTime(b);
   } else if (sortMode === "newest") {
     result = newestTime(a) - newestTime(b);
@@ -111,6 +114,10 @@ function newestTime(tile: FidTile) {
 
 function oldestTime(tile: FidTile) {
   return Date.parse(tile.images.at(-1)?.storedAt ?? "0");
+}
+
+function totalLikes(tile: FidTile) {
+  return tile.images.reduce((sum, image) => sum + image.likeCount, 0);
 }
 
 function clampNumber(value: number, min: number, max: number) {
