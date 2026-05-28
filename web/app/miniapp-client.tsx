@@ -28,7 +28,7 @@ export function MiniAppHome({
     [tiles, user]
   );
   const latestTiles = tiles.slice(0, 6);
-  const heroTile = userTile ?? latestTiles[0];
+  const heroTile = userTile ?? (user ? undefined : latestTiles[0]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +93,7 @@ export function MiniAppHome({
         </div>
 
         <div className="heroStack" aria-hidden="true">
-          {heroImages(heroTile).map((image, index) => (
+          {heroImages(heroTile, user).map((image, index) => (
             <img
               key={`${image.filename}-${index}`}
               src={image.thumbUrl ?? image.url}
@@ -112,7 +112,7 @@ export function MiniAppHome({
             {userTile
               ? `${userTile.images.length.toLocaleString()} saved PFP${userTile.images.length === 1 ? "" : "s"} found in your timeline.`
               : user?.fid
-                ? "You are identified. Your timeline appears here after the collector sees a PFP update for your FID."
+                ? "You are identified. Showing your current Farcaster PFP until Faces archives your first change."
                 : "The Mini App detects your Farcaster account automatically when opened inside Farcaster."}
           </p>
         </div>
@@ -123,8 +123,8 @@ export function MiniAppHome({
             ))}
           </div>
         ) : (
-          <div className="welcomePreview placeholderPreview" aria-hidden="true">
-            {heroImages(heroTile).slice(0, 4).map((image) => (
+          <div className={user?.pfpUrl ? "welcomePreview" : "welcomePreview placeholderPreview"} aria-hidden="true">
+            {heroImages(heroTile, user).slice(0, 4).map((image) => (
               <img key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
             ))}
           </div>
@@ -173,11 +173,24 @@ export function MiniAppHome({
   );
 }
 
-function heroImages(tile?: FidTile) {
+function heroImages(tile?: FidTile, user?: MiniAppUser) {
   const images = tile?.images.slice(0, 5) ?? [];
 
   if (images.length > 0) {
     return images;
+  }
+
+  if (user?.pfpUrl) {
+    return [
+      {
+        id: `current-${user.fid}`,
+        filename: `current-${user.fid}`,
+        url: user.pfpUrl,
+        size: 0,
+        storedAt: new Date(0).toISOString(),
+        likeCount: 0
+      }
+    ];
   }
 
   return [
