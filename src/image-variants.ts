@@ -1,7 +1,7 @@
 import sharp from "sharp";
 
 export type ImageVariant = {
-  label: "thumb" | "medium";
+  label: "medium";
   filename: string;
   body: Buffer;
   contentType: "image/webp";
@@ -12,10 +12,7 @@ export async function createPfpVariants(input: {
   body: Buffer;
   basename: string;
 }): Promise<ImageVariant[]> {
-  const variants = await Promise.all([
-    createVariant(input.body, input.basename, "thumb", 160, 72),
-    createVariant(input.body, input.basename, "medium", 512, 80)
-  ]);
+  const variants = await Promise.all([createVariant(input.body, input.basename, 256, 58)]);
 
   return variants.filter((variant): variant is ImageVariant => Boolean(variant));
 }
@@ -23,7 +20,6 @@ export async function createPfpVariants(input: {
 async function createVariant(
   body: Buffer,
   basename: string,
-  label: "thumb" | "medium",
   width: number,
   quality: number
 ) {
@@ -36,19 +32,19 @@ async function createVariant(
         fit: "cover",
         withoutEnlargement: true
       })
-      .webp({ quality, effort: 4 })
+      .webp({ quality, effort: 6 })
       .toBuffer();
 
     return {
-      label,
-      filename: `${basename}.${label}.webp`,
+      label: "medium" as const,
+      filename: `${basename}.medium.webp`,
       body: output,
       contentType: "image/webp" as const,
       width
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown image processing error";
-    console.warn(`Could not create ${label} variant: ${message}`);
+    console.warn(`Could not create PFP variant: ${message}`);
     return undefined;
   }
 }
