@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFidTile } from "@/lib/pfps";
 import { LikePanel } from "../../like-panel";
+import { SafeImage } from "../../safe-image";
 import { ShareButton } from "../../share-button";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ export default async function FidPage({
         {tile.images.map((image) => (
           <article key={image.filename} className="historyItem">
             <a href={image.url} target="_blank" rel="noreferrer">
-              <img
+              <SafeImage
                 src={image.url}
                 alt={`FID ${tile.fid} PFP logged ${formatDate(image.storedAt)}`}
                 loading="lazy"

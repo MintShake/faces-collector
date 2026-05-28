@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { FidTile } from "@/lib/pfps";
 import { AddAppButton } from "./add-app-button";
 import { FidCard } from "./fid-card";
+import { SafeImage } from "./safe-image";
 import { ShareButton } from "./share-button";
 
 type MiniAppUser = {
@@ -94,7 +95,7 @@ export function MiniAppHome({
 
         <div className="heroStack" aria-hidden="true">
           {heroImages(heroTile, user).map((image, index) => (
-            <img
+            <SafeImage
               key={`${image.filename}-${index}`}
               src={image.thumbUrl ?? image.url}
               alt=""
@@ -119,13 +120,13 @@ export function MiniAppHome({
         {userTile ? (
           <div className="welcomePreview">
             {userTile.images.slice(0, 4).map((image) => (
-              <img key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
+              <SafeImage key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
             ))}
           </div>
         ) : (
           <div className={user?.pfpUrl ? "welcomePreview" : "welcomePreview placeholderPreview"} aria-hidden="true">
             {heroImages(heroTile, user).slice(0, 4).map((image) => (
-              <img key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
+              <SafeImage key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
             ))}
           </div>
         )}

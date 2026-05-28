@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { FidTile } from "@/lib/pfps";
 import { LikePanel } from "./like-panel";
+import { SafeImage } from "./safe-image";
 import { ShareButton } from "./share-button";
 
 export function FidCard({ tile }: { tile: FidTile }) {
@@ -12,7 +13,7 @@ export function FidCard({ tile }: { tile: FidTile }) {
       <Link className="tileLink" href={`/fid/${tile.fid}`}>
         <div className="thumbStack" aria-hidden="true">
           {preview.map((image, index) => (
-            <img
+            <SafeImage
               key={image.filename}
               src={image.thumbUrl ?? image.url}
               alt=""
