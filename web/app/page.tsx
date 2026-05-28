@@ -1,4 +1,3 @@
-import { GalleryControls } from "./gallery-controls";
 import { MiniAppHome } from "./miniapp-client";
 import { getPfpGallery } from "@/lib/pfps";
 
@@ -11,15 +10,6 @@ export default async function Home() {
   return (
     <main className="shell">
       <MiniAppHome tiles={tiles} totalImages={totalImages} />
-
-      {tiles.length > 0 ? (
-        <GalleryControls tiles={tiles} />
-      ) : (
-        <section className="emptyState">
-          <h2>No PFPs logged yet</h2>
-          <p>Once the collector writes images to Blob, FID tiles will appear here.</p>
-        </section>
-      )}
     </main>
   );
 }

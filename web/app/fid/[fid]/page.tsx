@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFidTile } from "@/lib/pfps";
+import { ShareButton } from "../../share-button";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export default async function FidPage({
           <h1>FID {tile.fid}</h1>
           <p>{tile.images.length.toLocaleString()} logged PFPs</p>
         </div>
+        <ShareButton fid={tile.fid} count={tile.images.length} />
       </header>
 
       <section className="historyGrid" aria-label={`PFP history for FID ${tile.fid}`}>
