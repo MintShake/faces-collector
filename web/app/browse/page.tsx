@@ -12,10 +12,10 @@ export default async function BrowsePage() {
     <main className="shell">
       <header className="topbar">
         <div>
-          <span className="appMark">Browse</span>
-          <h1>All PFP timelines</h1>
+          <span className="appMark">Memory wall</span>
+          <h1>Browse every era</h1>
           <p>
-            {tiles.length.toLocaleString()} FIDs, {totalImages.toLocaleString()} logged PFP changes.
+            {tiles.length.toLocaleString()} people, {totalImages.toLocaleString()} saved PFP moments.
           </p>
         </div>
         <Link className="backLink" href="/">

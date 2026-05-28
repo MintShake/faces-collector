@@ -30,6 +30,7 @@ export function MiniAppHome({
   );
   const latestTiles = tiles.slice(0, 6);
   const heroTile = userTile ?? (user ? undefined : latestTiles[0]);
+  const topMoment = latestTiles[0];
 
   useEffect(() => {
     let cancelled = false;
@@ -72,11 +73,11 @@ export function MiniAppHome({
       <section className="miniHero">
         <div className="heroCopy">
           <span className="appMark">Faces</span>
-          <h1>{user ? "Your PFP timeline" : "A living archive of Farcaster faces"}</h1>
+          <h1>{user ? "Your face, through every era" : "Every PFP has a before and after"}</h1>
           <p>
             {user
-              ? `Welcome${user.username ? `, @${user.username}` : ""}. Faces checks your FID first, then lets you browse everyone else.`
-              : "Open this in Farcaster to detect your FID, find your stored PFPs, and share your timeline."}
+              ? `Welcome${user.username ? `, @${user.username}` : ""}. Your timeline lives first here, then the wider Farcaster memory wall opens up.`
+              : "Faces saves the little identity shifts people forget: the icons, eras, jokes, glow-ups, and quiet resets that become a timeline."}
           </p>
           <div className="heroActions">
             {userTile ? (
@@ -90,6 +91,11 @@ export function MiniAppHome({
             )}
             {user && <AddAppButton user={user} />}
             <ShareButton fid={userTile?.fid} count={userTile?.images.length} />
+          </div>
+          <div className="memoryRibbon" aria-label="Faces highlights">
+            <span>personal archive</span>
+            <span>community memories</span>
+            <span>PFP eras</span>
           </div>
         </div>
 
@@ -107,14 +113,14 @@ export function MiniAppHome({
 
       <section className="welcomePanel" aria-label="Your Faces status">
         <div>
-          <span className="eyebrow">Your FID</span>
+          <span className="eyebrow">Start with you</span>
           <h2>{user?.fid ? `FID ${user.fid}` : "Open in Farcaster"}</h2>
           <p>
             {userTile
-              ? `${userTile.images.length.toLocaleString()} saved PFP${userTile.images.length === 1 ? "" : "s"} found in your timeline.`
+              ? `${userTile.images.length.toLocaleString()} saved PFP${userTile.images.length === 1 ? "" : "s"} in your personal timeline.`
               : user?.fid
-                ? "You are identified. Showing your current Farcaster PFP until Faces archives your first change."
-                : "The Mini App detects your Farcaster account automatically when opened inside Farcaster."}
+                ? "You are identified. Faces is ready to catch your next chapter when your PFP changes."
+                : "The Mini App detects your Farcaster account automatically and puts your own timeline first."}
           </p>
         </div>
         {userTile ? (
@@ -135,15 +141,15 @@ export function MiniAppHome({
       <section className="statsStrip" aria-label="Collection stats">
         <div>
           <span>{tiles.length.toLocaleString()}</span>
-          <p>FIDs logged</p>
+          <p>people remembered</p>
         </div>
         <div>
           <span>{totalImages.toLocaleString()}</span>
-          <p>PFP changes</p>
+          <p>faces saved</p>
         </div>
         <div>
-          <span>{user?.fid ? `FID ${user.fid}` : "Mini App"}</span>
-          <p>{user?.username ? `@${user.username}` : "Open in Farcaster"}</p>
+          <span>{topMoment ? `${topMoment.images.length}x` : "live"}</span>
+          <p>{topMoment ? `biggest timeline: FID ${topMoment.fid}` : "watching new eras"}</p>
         </div>
       </section>
 
@@ -151,8 +157,8 @@ export function MiniAppHome({
         <section className="homeSection" aria-label="Recent PFP timelines">
           <div className="sectionHeading">
             <div>
-              <span className="eyebrow">Browse others</span>
-              <h2>Recently logged</h2>
+              <span className="eyebrow">Memory wall</span>
+              <h2>People changing in public</h2>
             </div>
             <Link className="textButton" href="/browse">
               View all
