@@ -12,7 +12,7 @@ const miniAppEmbed = {
       name: "Faces",
       url: appUrl,
       splashImageUrl: `${appUrl}/miniapp/splash.png`,
-      splashBackgroundColor: "#0b1020"
+      splashBackgroundColor: "#121826"
     }
   }
 };
@@ -20,10 +20,10 @@ const miniAppEmbed = {
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: "Faces",
-  description: "See your Farcaster PFP timeline.",
+  description: "Collect, like, share, and rediscover every Farcaster PFP era.",
   openGraph: {
     title: "Faces",
-    description: "See your Farcaster PFP timeline.",
+    description: "Collect, like, share, and rediscover every Farcaster PFP era.",
     images: ["/miniapp/embed.png"]
   },
   icons: {
