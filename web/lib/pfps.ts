@@ -97,31 +97,38 @@ async function listAllBlobs(prefix: string) {
     const blobs = [];
     let continuationToken: string | undefined;
 
-    do {
-      const page = await s3.client.send(
-        new ListObjectsV2Command({
-          Bucket: s3.bucket,
-          Prefix: prefix,
-          MaxKeys: 1000,
-          ContinuationToken: continuationToken
-        })
-      );
+    try {
+      do {
+        const page = await s3.client.send(
+          new ListObjectsV2Command({
+            Bucket: s3.bucket,
+            Prefix: prefix,
+            MaxKeys: 1000,
+            ContinuationToken: continuationToken
+          })
+        );
 
-      for (const item of page.Contents ?? []) {
-        if (!item.Key) {
-          continue;
+        for (const item of page.Contents ?? []) {
+          if (!item.Key) {
+            continue;
+          }
+
+          blobs.push({
+            pathname: item.Key,
+            url: publicObjectUrl(s3, item.Key),
+            size: item.Size ?? 0,
+            uploadedAt: item.LastModified ?? new Date(0)
+          });
         }
 
-        blobs.push({
-          pathname: item.Key,
-          url: publicObjectUrl(s3, item.Key),
-          size: item.Size ?? 0,
-          uploadedAt: item.LastModified ?? new Date(0)
-        });
-      }
+        continuationToken = page.NextContinuationToken;
+      } while (continuationToken);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown S3 list error";
 
-      continuationToken = page.NextContinuationToken;
-    } while (continuationToken);
+      console.warn(`Could not list S3 PFPs: ${message}`);
+      return [];
+    }
 
     return blobs;
   }
