@@ -228,7 +228,7 @@ async function putJson(key: string, value: unknown) {
   const storage = s3Config();
 
   if (!storage) {
-    throw new Error("B2/S3 storage is not configured");
+    throw new Error("object storage is not configured");
   }
 
   await storage.client.send(
@@ -258,11 +258,32 @@ function redisConfig() {
 }
 
 function s3Config() {
-  const bucket = process.env.B2_BUCKET ?? process.env.S3_BUCKET;
-  const endpoint = process.env.B2_ENDPOINT ?? process.env.S3_ENDPOINT;
-  const region = process.env.B2_REGION ?? process.env.S3_REGION ?? "us-west-004";
-  const accessKeyId = process.env.B2_KEY_ID ?? process.env.S3_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.B2_APPLICATION_KEY ?? process.env.S3_SECRET_ACCESS_KEY;
+  const bucket =
+    process.env.TIGRIS_BUCKET ??
+    process.env.BUCKET_NAME ??
+    process.env.B2_BUCKET ??
+    process.env.S3_BUCKET;
+  const endpoint =
+    process.env.TIGRIS_ENDPOINT ??
+    process.env.AWS_ENDPOINT_URL_S3 ??
+    process.env.B2_ENDPOINT ??
+    process.env.S3_ENDPOINT;
+  const region =
+    process.env.TIGRIS_REGION ??
+    process.env.AWS_REGION ??
+    process.env.B2_REGION ??
+    process.env.S3_REGION ??
+    "auto";
+  const accessKeyId =
+    process.env.TIGRIS_ACCESS_KEY_ID ??
+    process.env.AWS_ACCESS_KEY_ID ??
+    process.env.B2_KEY_ID ??
+    process.env.S3_ACCESS_KEY_ID;
+  const secretAccessKey =
+    process.env.TIGRIS_SECRET_ACCESS_KEY ??
+    process.env.AWS_SECRET_ACCESS_KEY ??
+    process.env.B2_APPLICATION_KEY ??
+    process.env.S3_SECRET_ACCESS_KEY;
 
   if (!bucket || !endpoint || !accessKeyId || !secretAccessKey) {
     return undefined;

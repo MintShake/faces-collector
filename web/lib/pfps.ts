@@ -160,11 +160,32 @@ async function listAllBlobs(prefix: string) {
 let cachedS3Client: S3Client | undefined;
 
 function s3Config() {
-  const bucket = process.env.B2_BUCKET ?? process.env.S3_BUCKET;
-  const endpoint = process.env.B2_ENDPOINT ?? process.env.S3_ENDPOINT;
-  const region = process.env.B2_REGION ?? process.env.S3_REGION ?? "us-west-004";
-  const accessKeyId = process.env.B2_KEY_ID ?? process.env.S3_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.B2_APPLICATION_KEY ?? process.env.S3_SECRET_ACCESS_KEY;
+  const bucket =
+    process.env.TIGRIS_BUCKET ??
+    process.env.BUCKET_NAME ??
+    process.env.B2_BUCKET ??
+    process.env.S3_BUCKET;
+  const endpoint =
+    process.env.TIGRIS_ENDPOINT ??
+    process.env.AWS_ENDPOINT_URL_S3 ??
+    process.env.B2_ENDPOINT ??
+    process.env.S3_ENDPOINT;
+  const region =
+    process.env.TIGRIS_REGION ??
+    process.env.AWS_REGION ??
+    process.env.B2_REGION ??
+    process.env.S3_REGION ??
+    "auto";
+  const accessKeyId =
+    process.env.TIGRIS_ACCESS_KEY_ID ??
+    process.env.AWS_ACCESS_KEY_ID ??
+    process.env.B2_KEY_ID ??
+    process.env.S3_ACCESS_KEY_ID;
+  const secretAccessKey =
+    process.env.TIGRIS_SECRET_ACCESS_KEY ??
+    process.env.AWS_SECRET_ACCESS_KEY ??
+    process.env.B2_APPLICATION_KEY ??
+    process.env.S3_SECRET_ACCESS_KEY;
 
   if (!bucket || !endpoint || !accessKeyId || !secretAccessKey) {
     return undefined;
@@ -185,7 +206,10 @@ function s3Config() {
   return {
     bucket,
     endpoint,
-    publicBaseUrl: process.env.B2_PUBLIC_BASE_URL ?? process.env.S3_PUBLIC_BASE_URL,
+    publicBaseUrl:
+      process.env.TIGRIS_PUBLIC_BASE_URL ??
+      process.env.B2_PUBLIC_BASE_URL ??
+      process.env.S3_PUBLIC_BASE_URL,
     client: cachedS3Client
   };
 }

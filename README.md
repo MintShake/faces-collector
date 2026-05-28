@@ -40,7 +40,20 @@ When a PFP URL is present, the service downloads the image, hashes the bytes wit
 
 The service also keeps local state in SQLite at `data/faces.sqlite`. Before downloading a PFP, it checks whether that FID already has the same PFP URL and hash. If it does, the download is skipped and only the FID's last-seen timestamp is updated.
 
-If `BLOB_READ_WRITE_TOKEN` is configured, every newly saved PFP is resized before upload. By default the collector uploads only compressed WebP variants under `pfps/<fid>/`: a 160px thumbnail and a 512px medium image. Originals stay local unless `BLOB_UPLOAD_ORIGINALS=true`.
+If cloud object storage is configured, every newly saved PFP is resized before upload. The collector stores a single compressed 256px WebP under `pfps/<fid>/` and does not upload originals unless `BLOB_UPLOAD_ORIGINALS=true`.
+
+Tigris is the preferred hosted object storage path:
+
+```bash
+TIGRIS_BUCKET=your-bucket
+TIGRIS_ENDPOINT=https://t3.storage.dev
+TIGRIS_REGION=auto
+TIGRIS_ACCESS_KEY_ID=tid_...
+TIGRIS_SECRET_ACCESS_KEY=tsec_...
+TIGRIS_PUBLIC_BASE_URL=
+```
+
+The same values need to exist in both Render for the collector and Vercel for the web app. Make the bucket public for image serving. If Tigris gives you a public bucket URL or you add a custom image domain, put it in `TIGRIS_PUBLIC_BASE_URL`; otherwise the app serves public objects through `https://t3.storage.dev/<bucket>/<key>`. B2 and generic S3-compatible variables are still supported as fallbacks.
 
 Kafka is optional. Set `KAFKA_ENABLED=true` to emit Kafka events; leave it false for the lightweight hosted collector path that only uses SQLite and Vercel Blob.
 
@@ -82,7 +95,7 @@ npm run web:dev
 
 Open `http://localhost:3001` to see FID tiles ordered by most logged PFPs to least. Each tile shows stacked thumbnails and a count; clicking a tile opens that FID's full PFP history.
 
-For Vercel, set the project root to `web`. The current app reads image history from `PFP_STORAGE_DIR`, defaulting locally to `../data/pfps`. For production, that directory needs to be available to the deployment, or the image/history storage should be moved to durable cloud storage such as Vercel Blob.
+For Vercel, set the project root to `web`. In production the app lists PFP history from the same Tigris/S3 bucket used by the collector.
 
 To print unique FIDs as they appear in Kafka:
 
