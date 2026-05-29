@@ -288,6 +288,13 @@ p {
   color: #fff;
 }
 
+.textButton.danger {
+  min-height: 32px;
+  justify-self: start;
+  color: #9e1738;
+  font-size: 12px;
+}
+
 .shareButton.compact {
   width: 100%;
   min-height: 36px;
@@ -373,6 +380,12 @@ p {
   transform: translateY(-5px) rotate(0deg);
 }
 
+.welcomeSummary {
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+}
+
 .placeholderPreview {
   opacity: 0.74;
 }
@@ -414,6 +427,50 @@ p {
 .sectionHeading {
   justify-content: space-between;
   margin-bottom: 4px;
+}
+
+.changeRail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(132px, 168px);
+  gap: 12px;
+  padding: 16px 0 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.changeCard {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(7, 18, 31, 0.1);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--soft-shadow);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.changeCard:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow);
+}
+
+.changeCard img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 16px;
+  background: #e8f3f5;
+}
+
+.changeCard span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.changeCard strong {
+  font-size: 14px;
 }
 
 .topbar,
@@ -477,6 +534,16 @@ p {
 .resultCount {
   margin: 12px 0 0;
   font-weight: 760;
+}
+
+.inlineReset {
+  margin-left: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--coral);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .emptyState {
@@ -681,7 +748,10 @@ p {
   justify-content: flex-start;
 }
 
-.detailHeader .shareButton {
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-left: auto;
 }
 
@@ -751,6 +821,26 @@ p {
   font-size: 17px;
 }
 
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.badgeRow span {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 207, 74, 0.36), rgba(24, 200, 210, 0.18));
+  color: var(--night);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
 .profileFacts {
   display: flex;
   flex-wrap: wrap;
@@ -766,6 +856,42 @@ p {
   padding: 0 11px;
   border: 1px solid rgba(7, 18, 31, 0.1);
   border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.wrappedPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr);
+  gap: 18px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 22px;
+  border: 1px solid rgba(7, 18, 31, 0.1);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(24, 200, 210, 0.13), rgba(255, 79, 123, 0.11)),
+    rgba(255, 255, 255, 0.78);
+  box-shadow: var(--soft-shadow);
+}
+
+.wrappedPanel h2 {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 48px);
+  line-height: 1;
+}
+
+.wrappedStats {
+  display: grid;
+  gap: 8px;
+}
+
+.wrappedStats span {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.72);
   color: var(--muted);
   font-size: 13px;

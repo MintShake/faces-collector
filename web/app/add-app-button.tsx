@@ -10,7 +10,15 @@ type MiniAppUser = {
   pfpUrl?: string;
 };
 
-export function AddAppButton({ user }: { user?: MiniAppUser }) {
+export function AddAppButton({
+  user,
+  variant = "secondary",
+  label = "Add app"
+}: {
+  user?: MiniAppUser;
+  variant?: "primary" | "secondary";
+  label?: string;
+}) {
   const [status, setStatus] = useState<"idle" | "saved" | "busy">("idle");
 
   async function addApp() {
@@ -44,8 +52,8 @@ export function AddAppButton({ user }: { user?: MiniAppUser }) {
   }
 
   return (
-    <button className="shareButton" type="button" onClick={addApp} disabled={status === "busy"}>
-      {status === "saved" ? "Notifications on" : status === "busy" ? "Adding" : "Add app"}
+    <button className={variant === "primary" ? "primaryButton" : "shareButton"} type="button" onClick={addApp} disabled={status === "busy"}>
+      {status === "saved" ? "Notifications on" : status === "busy" ? "Adding" : label}
     </button>
   );
 }

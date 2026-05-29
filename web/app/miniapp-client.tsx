@@ -31,6 +31,8 @@ export function MiniAppHome({
   const latestTiles = tiles.slice(0, 6);
   const heroTile = userTile ?? (user ? undefined : latestTiles[0]);
   const topMoment = latestTiles[0];
+  const recentChanges = useMemo(() => newestImages(tiles).slice(0, 8), [tiles]);
+  const mostLoved = useMemo(() => mostLikedImages(tiles).slice(0, 6), [tiles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,8 +91,13 @@ export function MiniAppHome({
                 Browse timelines
               </Link>
             )}
-            {user && <AddAppButton user={user} />}
-            <ShareButton fid={userTile?.fid} count={userTile?.images.length} />
+            {user && <AddAppButton user={user} variant="primary" label="Add Faces" />}
+            <ShareButton
+              fid={userTile?.fid}
+              count={userTile?.images.length}
+              label={userTile ? "Share my eras" : "Share Faces"}
+              text={userTile ? `My PFP eras are on Faces. ${userTile.images.length.toLocaleString()} moments saved.` : undefined}
+            />
           </div>
           <div className="memoryRibbon" aria-label="Faces highlights">
             <span>personal archive</span>
@@ -124,16 +131,22 @@ export function MiniAppHome({
           </p>
         </div>
         {userTile ? (
-          <div className="welcomePreview">
-            {userTile.images.slice(0, 4).map((image) => (
-              <SafeImage key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
-            ))}
+          <div className="welcomeSummary">
+            <div className="welcomePreview">
+              {userTile.images.slice(0, 4).map((image) => (
+                <SafeImage key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
+              ))}
+            </div>
+            <ShareButton fid={userTile.fid} count={userTile.images.length} label="Share my timeline" variant="primary" />
           </div>
         ) : (
-          <div className={user?.pfpUrl ? "welcomePreview" : "welcomePreview placeholderPreview"} aria-hidden="true">
-            {heroImages(heroTile, user).slice(0, 4).map((image) => (
-              <SafeImage key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
-            ))}
+          <div className="welcomeSummary">
+            <div className={user?.pfpUrl ? "welcomePreview" : "welcomePreview placeholderPreview"} aria-hidden="true">
+              {heroImages(heroTile, user).slice(0, 4).map((image) => (
+                <SafeImage key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
+              ))}
+            </div>
+            {user && <AddAppButton user={user} label="Watch my first era" />}
           </div>
         )}
       </section>
@@ -154,30 +167,98 @@ export function MiniAppHome({
       </section>
 
       {latestTiles.length > 0 ? (
-        <section className="homeSection" aria-label="Recent PFP timelines">
-          <div className="sectionHeading">
-            <div>
-              <span className="eyebrow">Memory wall</span>
-              <h2>People changing in public</h2>
+        <>
+          {recentChanges.length > 0 && (
+            <section className="homeSection" aria-label="Recent PFP changes">
+              <div className="sectionHeading">
+                <div>
+                  <span className="eyebrow">Live changes</span>
+                  <h2>Fresh eras</h2>
+                </div>
+                <Link className="textButton" href="/browse">
+                  Browse all
+                </Link>
+              </div>
+              <div className="changeRail">
+                {recentChanges.map(({ fid, image }) => (
+                  <Link key={image.id} className="changeCard" href={`/fid/${fid}`}>
+                    <SafeImage src={image.thumbUrl ?? image.url} alt="" />
+                    <span>FID {fid}</span>
+                    <strong>{formatShortDate(image.storedAt)}</strong>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {mostLoved.length > 0 && (
+            <section className="homeSection" aria-label="Most loved PFPs">
+              <div className="sectionHeading">
+                <div>
+                  <span className="eyebrow">Community favorites</span>
+                  <h2>Most loved</h2>
+                </div>
+              </div>
+              <div className="changeRail lovedRail">
+                {mostLoved.map(({ fid, image }) => (
+                  <Link key={image.id} className="changeCard" href={`/fid/${fid}`}>
+                    <SafeImage src={image.thumbUrl ?? image.url} alt="" />
+                    <span>FID {fid}</span>
+                    <strong>{image.likeCount.toLocaleString()} likes</strong>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="homeSection" aria-label="Recent PFP timelines">
+            <div className="sectionHeading">
+              <div>
+                <span className="eyebrow">Memory wall</span>
+                <h2>People changing in public</h2>
+              </div>
+              <Link className="textButton" href="/browse">
+                View all
+              </Link>
             </div>
-            <Link className="textButton" href="/browse">
-              View all
-            </Link>
-          </div>
-          <div className="tileGrid homeGrid">
-            {latestTiles.map((tile) => (
-              <FidCard key={tile.fid} tile={tile} />
-            ))}
-          </div>
-        </section>
+            <div className="tileGrid homeGrid">
+              {latestTiles.map((tile) => (
+                <FidCard key={tile.fid} tile={tile} />
+              ))}
+            </div>
+          </section>
+        </>
       ) : (
         <section className="emptyState">
-          <h2>No PFPs logged yet</h2>
-          <p>Once the collector writes images to storage, FID tiles will appear here.</p>
+          <h2>Faces is watching now</h2>
+          <p>Open in Farcaster, add the Mini App, and your first saved era will appear when your PFP changes.</p>
+          {user && <AddAppButton user={user} variant="primary" label="Add Faces" />}
         </section>
       )}
     </>
   );
+}
+
+function newestImages(tiles: FidTile[]) {
+  return tiles
+    .flatMap((tile) => tile.images.map((image) => ({ fid: tile.fid, image })))
+    .sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt));
+}
+
+function mostLikedImages(tiles: FidTile[]) {
+  return tiles
+    .flatMap((tile) => tile.images.map((image) => ({ fid: tile.fid, image })))
+    .filter(({ image }) => image.likeCount > 0)
+    .sort((a, b) => b.image.likeCount - a.image.likeCount);
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
 }
 
 function heroImages(tile?: FidTile, user?: MiniAppUser) {

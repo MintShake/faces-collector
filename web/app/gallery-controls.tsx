@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FidTile } from "@/lib/pfps";
 import { FidCard } from "./fid-card";
 
@@ -12,13 +12,36 @@ export function GalleryControls({ tiles }: { tiles: FidTile[] }) {
   const [sortMode, setSortMode] = useState<SortMode>("likes");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [minimumCount, setMinimumCount] = useState(1);
+  const [hiddenFids, setHiddenFids] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    function loadHiddenFids() {
+      try {
+        const value = window.localStorage.getItem("faces.hiddenFids");
+        const parsed = value ? JSON.parse(value) : [];
+        setHiddenFids(new Set(Array.isArray(parsed) ? parsed.map(String) : []));
+      } catch {
+        setHiddenFids(new Set());
+      }
+    }
+
+    loadHiddenFids();
+    window.addEventListener("faces:hidden-fids-changed", loadHiddenFids);
+    window.addEventListener("storage", loadHiddenFids);
+
+    return () => {
+      window.removeEventListener("faces:hidden-fids-changed", loadHiddenFids);
+      window.removeEventListener("storage", loadHiddenFids);
+    };
+  }, []);
 
   const filteredTiles = useMemo(() => {
     return [...tiles]
       .filter((tile) => String(tile.fid).includes(query.trim()))
+      .filter((tile) => !hiddenFids.has(String(tile.fid)))
       .filter((tile) => tile.images.length >= minimumCount)
       .sort((a, b) => compareTiles(a, b, sortMode, sortDirection));
-  }, [minimumCount, query, sortDirection, sortMode, tiles]);
+  }, [hiddenFids, minimumCount, query, sortDirection, sortMode, tiles]);
 
   const totalImages = filteredTiles.reduce((sum, tile) => sum + tile.images.length, 0);
   const maxCount = Math.max(1, ...tiles.map((tile) => tile.images.length));
@@ -73,6 +96,14 @@ export function GalleryControls({ tiles }: { tiles: FidTile[] }) {
 
       <p className="resultCount">
         Showing {filteredTiles.length.toLocaleString()} FIDs and {totalImages.toLocaleString()} logged PFPs
+        {hiddenFids.size > 0 && (
+          <button className="inlineReset" type="button" onClick={() => {
+            window.localStorage.removeItem("faces.hiddenFids");
+            setHiddenFids(new Set());
+          }}>
+            Show hidden
+          </button>
+        )}
       </p>
 
       <section className="tileGrid" aria-label="Farcaster FID PFP history">

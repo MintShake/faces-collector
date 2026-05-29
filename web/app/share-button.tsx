@@ -6,25 +6,29 @@ import { useState } from "react";
 export function ShareButton({
   fid,
   count,
-  variant = "secondary"
+  variant = "secondary",
+  label,
+  text
 }: {
   fid?: number;
   count?: number;
   variant?: "primary" | "secondary" | "compact";
+  label?: string;
+  text?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
   async function share() {
     const path = fid ? `/fid/${fid}` : "/";
     const url = new URL(path, window.location.origin).toString();
-    const text = fid
+    const shareText = text ?? (fid
       ? `FID ${fid} has ${count?.toLocaleString() ?? "a"} logged PFP${count === 1 ? "" : "s"} on Faces.`
-      : "Faces turns Farcaster PFP changes into a timeline.";
+      : "Faces turns Farcaster PFP changes into a timeline.");
 
     try {
       if (await sdk.isInMiniApp()) {
         await sdk.actions.composeCast({
-          text,
+          text: shareText,
           embeds: [url]
         });
         return;
@@ -34,7 +38,7 @@ export function ShareButton({
     }
 
     if (navigator.share) {
-      await navigator.share({ title: "Faces", text, url });
+      await navigator.share({ title: "Faces", text: shareText, url });
       return;
     }
 
@@ -45,7 +49,7 @@ export function ShareButton({
 
   return (
     <button className={`shareButton ${variant}`} type="button" onClick={share}>
-      {copied ? "Copied" : "Share"}
+      {copied ? "Copied" : label ?? "Share"}
     </button>
   );
 }
