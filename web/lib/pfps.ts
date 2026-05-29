@@ -218,11 +218,30 @@ function publicObjectUrl(
   storage: { bucket: string; endpoint: string; publicBaseUrl?: string },
   pathname: string
 ) {
+  const proxyBaseUrl = imageProxyBaseUrl();
+
+  if (proxyBaseUrl && pathname.startsWith("pfps/")) {
+    return `${proxyBaseUrl}/${pathname}`;
+  }
+
   if (storage.publicBaseUrl) {
     return `${storage.publicBaseUrl.replace(/\/$/, "")}/${pathname}`;
   }
 
   return `${storage.endpoint.replace(/\/$/, "")}/${storage.bucket}/${pathname}`;
+}
+
+function imageProxyBaseUrl() {
+  if (process.env.IMAGE_PROXY_DISABLED === "true") {
+    return undefined;
+  }
+
+  if (process.env.IMAGE_PROXY_BASE_URL) {
+    return process.env.IMAGE_PROXY_BASE_URL.replace(/\/$/, "");
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
+  return `${appUrl.replace(/\/$/, "")}/api/image`;
 }
 
 function newestTime(tile: FidTile) {
