@@ -43,11 +43,21 @@ const client = getSSLHubRpcClient(config.hubRpcEndpoint, {
 let stopped = false;
 let seenEvents = 0;
 let postedProfiles = 0;
+const startedAt = new Date().toISOString();
+let connectedAt: string | undefined;
+let lastEventAt: string | undefined;
+let lastProfilePostAt: string | undefined;
+let lastError: string | undefined;
 
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
+setInterval(() => {
+  void postHeartbeat();
+}, 30_000).unref();
 
 await waitForReady();
+connectedAt = new Date().toISOString();
+await postHeartbeat("connected");
 console.log(`Connected to Farcaster Hub stream at ${config.hubRpcEndpoint}`);
 
 const subscribeResult = await client.subscribe({
@@ -72,6 +82,11 @@ client.close();
 
 async function handleEvent(event: HubEvent) {
   seenEvents += 1;
+  lastEventAt = new Date().toISOString();
+
+  if (seenEvents % 25 === 0) {
+    await postHeartbeat();
+  }
 
   const message = event.mergeMessageBody?.message;
   const fid = message?.data?.fid;
@@ -219,14 +234,42 @@ async function postProfile(profile: ProfileSnapshot) {
   });
 
   if (!response.ok) {
-    console.warn(`Collector rejected fid ${profile.fid}: ${response.status} ${await response.text()}`);
+    lastError = `Collector rejected fid ${profile.fid}: ${response.status} ${await response.text()}`;
+    await postHeartbeat("collector_rejected");
+    console.warn(lastError);
     return;
   }
 
   postedProfiles += 1;
+  lastProfilePostAt = new Date().toISOString();
 
   if (postedProfiles % 25 === 0) {
+    await postHeartbeat();
     console.log(`Hub monitor processed ${seenEvents} event(s), posted ${postedProfiles} profile snapshot(s)`);
+  }
+}
+
+async function postHeartbeat(status = "running") {
+  try {
+    await fetch(new URL("/internal/monitor-status", config.collectorUrl), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        status,
+        startedAt,
+        connectedAt,
+        seenEvents,
+        postedProfiles,
+        lastEventAt,
+        lastProfilePostAt,
+        lastError
+      }),
+      signal: AbortSignal.timeout(10_000)
+    });
+  } catch (error) {
+    console.warn(`Could not post monitor heartbeat: ${errorMessage(error)}`);
   }
 }
 
@@ -244,6 +287,7 @@ function waitForReady() {
 
 function stop(signal: string) {
   console.log(`Received ${signal}, stopping Hub monitor`);
+  void postHeartbeat("stopping");
   stopped = true;
 }
 

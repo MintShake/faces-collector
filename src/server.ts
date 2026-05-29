@@ -8,13 +8,25 @@ import { storePfpIfChanged, type PfpChange } from "./pfp-history.js";
 
 const app = express();
 const publicDir = path.join(process.cwd(), "public");
+let monitorStatus: Record<string, unknown> | undefined;
 
 app.use(express.json({ limit: "1mb" }));
 app.use("/pfps", express.static(config.pfpStorageDir));
 app.use(express.static(publicDir));
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    monitor: monitorStatus
+  });
+});
+
+app.post("/internal/monitor-status", (req, res) => {
+  monitorStatus = {
+    ...req.body,
+    lastHeartbeatAt: new Date().toISOString()
+  };
+  res.status(204).end();
 });
 
 app.get("/.well-known/appspecific/com.chrome.devtools.json", (_req, res) => {
