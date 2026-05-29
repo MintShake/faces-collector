@@ -3,7 +3,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config.js";
 import { uploadPfpToBlob, type BlobPfpUploadSet } from "./blob-storage.js";
-import { getCloudProfile, markCloudFidSeen, updateCloudPfp } from "./cloud-state.js";
+import {
+  getCloudProfile,
+  markCloudFidSeen,
+  updateCloudPfp,
+  updateCloudProfileMetadata
+} from "./cloud-state.js";
 import type { FarcasterInteraction } from "./fid.js";
 import { createPfpVariants } from "./image-variants.js";
 
@@ -121,6 +126,7 @@ async function storeCloudPfpIfChanged(
   interaction: FarcasterInteraction
 ): Promise<PfpChange | undefined> {
   await markCloudFidSeen(interaction.fid, interaction.receivedAt);
+  await storeCloudProfileMetadata(interaction);
 
   if (!interaction.pfpUrl) {
     return undefined;
@@ -177,6 +183,21 @@ async function storeCloudPfpIfChanged(
   });
 
   return change;
+}
+
+async function storeCloudProfileMetadata(interaction: FarcasterInteraction) {
+  if (!interaction.username && !interaction.displayName && !interaction.bio && !interaction.profileUrl) {
+    return;
+  }
+
+  await updateCloudProfileMetadata({
+    fid: interaction.fid,
+    username: interaction.username,
+    displayName: interaction.displayName,
+    bio: interaction.bio,
+    profileUrl: interaction.profileUrl,
+    seenAt: interaction.receivedAt
+  });
 }
 
 async function tryUploadPfpToBlob(input: {

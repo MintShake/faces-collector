@@ -4,6 +4,10 @@ export type CloudProfile = {
   fid: number;
   pfpUrl?: string;
   pfpSha256?: string;
+  username?: string;
+  displayName?: string;
+  bio?: string;
+  profileUrl?: string;
   blob?: BlobPfpUploadSet;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -39,8 +43,38 @@ export async function markCloudProfileFetched(fid: number, fetchedAt = new Date(
     lastProfileFetchedAt: fetchedAt,
     pfpUrl: existing?.pfpUrl,
     pfpSha256: existing?.pfpSha256,
+    username: existing?.username,
+    displayName: existing?.displayName,
+    bio: existing?.bio,
+    profileUrl: existing?.profileUrl,
     blob: existing?.blob,
     updatedAt: fetchedAt
+  });
+}
+
+export async function updateCloudProfileMetadata(input: {
+  fid: number;
+  username?: string;
+  displayName?: string;
+  bio?: string;
+  profileUrl?: string;
+  seenAt: string;
+}) {
+  const existing = await getCloudProfile(input.fid);
+
+  await putCloudProfile({
+    fid: input.fid,
+    firstSeenAt: existing?.firstSeenAt ?? input.seenAt,
+    lastSeenAt: input.seenAt,
+    lastProfileFetchedAt: existing?.lastProfileFetchedAt,
+    pfpUrl: existing?.pfpUrl,
+    pfpSha256: existing?.pfpSha256,
+    username: input.username ?? existing?.username,
+    displayName: input.displayName ?? existing?.displayName,
+    bio: input.bio ?? existing?.bio,
+    profileUrl: input.profileUrl ?? existing?.profileUrl,
+    blob: existing?.blob,
+    updatedAt: new Date().toISOString()
   });
 }
 
@@ -62,6 +96,10 @@ export async function updateCloudPfp(input: {
     lastProfileFetchedAt: updatedAt,
     pfpUrl: input.pfpUrl,
     pfpSha256: input.pfpSha256,
+    username: existing?.username,
+    displayName: existing?.displayName,
+    bio: existing?.bio,
+    profileUrl: existing?.profileUrl,
     blob: input.blob,
     updatedAt
   });

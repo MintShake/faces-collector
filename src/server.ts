@@ -140,7 +140,11 @@ function profileTopicMessages(
             fid: interaction.fid,
             lastSeenAt: interaction.receivedAt,
             lastEventType: interaction.eventType,
-            pfpUrl: interaction.pfpUrl
+            pfpUrl: interaction.pfpUrl,
+            username: interaction.username,
+            displayName: interaction.displayName,
+            bio: interaction.bio,
+            profileUrl: interaction.profileUrl
           })
         }
       ]

@@ -1,4 +1,9 @@
-import { ListObjectsV2Command, S3Client, type S3ClientConfig } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  ListObjectsV2Command,
+  S3Client,
+  type S3ClientConfig
+} from "@aws-sdk/client-s3";
 import { list } from "@vercel/blob";
 import { getLikeSummaryMap } from "./social";
 
@@ -16,12 +21,20 @@ export type PfpImage = {
 export type FidTile = {
   fid: number;
   images: PfpImage[];
-  latest?: {
-    url?: string;
-    sha256?: string;
-    storedAt?: string;
-    sourceEventType?: string;
-  };
+  profile?: FidProfile;
+};
+
+export type FidProfile = {
+  fid: number;
+  username?: string;
+  displayName?: string;
+  bio?: string;
+  profileUrl?: string;
+  pfpUrl?: string;
+  firstSeenAt?: string;
+  lastSeenAt?: string;
+  lastProfileFetchedAt?: string;
+  updatedAt?: string;
 };
 
 export async function getPfpGallery() {
@@ -30,7 +43,62 @@ export async function getPfpGallery() {
 
 export async function getFidTile(fid: number): Promise<FidTile | undefined> {
   const gallery = await getBlobPfpGallery();
-  return gallery.find((tile) => tile.fid === fid);
+  const tile = gallery.find((item) => item.fid === fid);
+
+  if (!tile) {
+    return undefined;
+  }
+
+  return {
+    ...tile,
+    profile: await getFidProfile(fid)
+  };
+}
+
+export async function getFidProfile(fid: number): Promise<FidProfile | undefined> {
+  const s3 = s3Config();
+
+  if (!s3) {
+    return undefined;
+  }
+
+  try {
+    const object = await s3.client.send(
+      new GetObjectCommand({
+        Bucket: s3.bucket,
+        Key: `state/fids/${fid}.json`
+      })
+    );
+    const text = await object.Body?.transformToString();
+
+    if (!text) {
+      return undefined;
+    }
+
+    const profile = JSON.parse(text) as FidProfile;
+
+    return {
+      fid,
+      username: profile.username,
+      displayName: profile.displayName,
+      bio: profile.bio,
+      profileUrl: profile.profileUrl,
+      pfpUrl: profile.pfpUrl,
+      firstSeenAt: profile.firstSeenAt,
+      lastSeenAt: profile.lastSeenAt,
+      lastProfileFetchedAt: profile.lastProfileFetchedAt,
+      updatedAt: profile.updatedAt
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown profile read error";
+
+    if (message.includes("NoSuchKey") || message.includes("404")) {
+      return undefined;
+    }
+
+    console.warn(`Could not read profile for fid ${fid}: ${message}`);
+    return undefined;
+  }
 }
 
 async function getBlobPfpGallery() {

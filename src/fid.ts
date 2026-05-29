@@ -4,6 +4,10 @@ export type FarcasterInteraction = {
   source: string;
   receivedAt: string;
   pfpUrl?: string;
+  username?: string;
+  displayName?: string;
+  bio?: string;
+  profileUrl?: string;
   payload: unknown;
 };
 
@@ -22,6 +26,10 @@ export function normalizeInteraction(payload: unknown): FarcasterInteraction {
     source: extractString(payload, ["source", "provider"]) ?? "farcaster",
     receivedAt: new Date().toISOString(),
     pfpUrl: extractPfpUrl(payload),
+    username: extractString(payload, ["username", "user_name"]),
+    displayName: extractString(payload, ["display_name", "displayName", "name"]),
+    bio: extractString(payload, ["bio", "description"]),
+    profileUrl: extractProfileUrl(payload),
     payload
   };
 }
@@ -62,6 +70,21 @@ function extractPfpUrl(value: unknown): string | undefined {
   ]);
 
   if (typeof found !== "string") {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(found);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function extractProfileUrl(value: unknown): string | undefined {
+  const found = extractString(value, ["url", "profile_url", "profileUrl", "website"]);
+
+  if (!found) {
     return undefined;
   }
 
