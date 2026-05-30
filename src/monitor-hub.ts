@@ -5,6 +5,7 @@ import {
   MessageType,
   UserDataType,
   type HubEvent,
+  type HubRpcClient,
   type Message
 } from "@farcaster/hub-nodejs";
 import {
@@ -33,16 +34,12 @@ if (!config.neynarApiKey) {
   process.exit(1);
 }
 
-const client = getSSLHubRpcClient(config.hubRpcEndpoint, {
-  interceptors: [
-    createDefaultMetadataKeyInterceptor("x-api-key", config.neynarApiKey)
-  ],
-  "grpc.max_receive_message_length": 20 * 1024 * 1024
-});
-
+const neynarApiKey = config.neynarApiKey;
 let stopped = false;
+let client: HubRpcClient | undefined;
 let seenEvents = 0;
 let postedProfiles = 0;
+let reconnects = 0;
 const startedAt = new Date().toISOString();
 let connectedAt: string | undefined;
 let lastEventAt: string | undefined;
@@ -55,30 +52,67 @@ setInterval(() => {
   void postHeartbeat();
 }, 30_000).unref();
 
-await waitForReady();
-connectedAt = new Date().toISOString();
-await postHeartbeat("connected");
-console.log(`Connected to Farcaster Hub stream at ${config.hubRpcEndpoint}`);
+while (!stopped) {
+  await runSubscription();
 
-const subscribeResult = await client.subscribe({
-  eventTypes: [HubEventType.MERGE_MESSAGE]
-});
-
-if (subscribeResult.isErr()) {
-  console.error(`Failed to subscribe to Hub events: ${subscribeResult.error.message}`);
-  client.close();
-  process.exit(1);
-}
-
-for await (const event of subscribeResult.value) {
-  if (stopped) {
-    break;
+  if (!stopped) {
+    reconnects += 1;
+    const delayMs = reconnectDelayMs(reconnects);
+    await postHeartbeat("reconnecting");
+    console.warn(`Hub stream ended; reconnecting in ${delayMs}ms`);
+    await sleep(delayMs);
   }
-
-  await handleEvent(event);
 }
 
-client.close();
+client?.close();
+
+async function runSubscription() {
+  client = createClient();
+
+  try {
+    await waitForReady(client);
+    connectedAt = new Date().toISOString();
+    lastError = undefined;
+    await postHeartbeat(reconnects > 0 ? "reconnected" : "connected");
+    console.log(`Connected to Farcaster Hub stream at ${config.hubRpcEndpoint}`);
+
+    const subscribeResult = await client.subscribe({
+      eventTypes: [HubEventType.MERGE_MESSAGE]
+    });
+
+    if (subscribeResult.isErr()) {
+      lastError = `Failed to subscribe to Hub events: ${subscribeResult.error.message}`;
+      await postHeartbeat("subscribe_failed");
+      console.error(lastError);
+      return;
+    }
+
+    for await (const event of subscribeResult.value) {
+      if (stopped) {
+        break;
+      }
+
+      reconnects = 0;
+      await handleEvent(event);
+    }
+  } catch (error) {
+    lastError = errorMessage(error);
+    await postHeartbeat("stream_error");
+    console.error(`Hub monitor stream error: ${lastError}`);
+  } finally {
+    client.close();
+    client = undefined;
+  }
+}
+
+function createClient() {
+  return getSSLHubRpcClient(config.hubRpcEndpoint, {
+    interceptors: [
+      createDefaultMetadataKeyInterceptor("x-api-key", neynarApiKey)
+    ],
+    "grpc.max_receive_message_length": 20 * 1024 * 1024
+  });
+}
 
 async function handleEvent(event: HubEvent) {
   seenEvents += 1;
@@ -136,6 +170,10 @@ async function fetchProfileByFid(
   message: Message
 ): Promise<ProfileSnapshot> {
   await markFetched(fid);
+
+  if (!client) {
+    return baseProfile(fid, event, message);
+  }
 
   const result = await client.getUserDataByFid({ fid });
   const profile = baseProfile(fid, event, message);
@@ -262,6 +300,7 @@ async function postHeartbeat(status = "running") {
         connectedAt,
         seenEvents,
         postedProfiles,
+        reconnects,
         lastEventAt,
         lastProfilePostAt,
         lastError
@@ -273,9 +312,9 @@ async function postHeartbeat(status = "running") {
   }
 }
 
-function waitForReady() {
+function waitForReady(hubClient: HubRpcClient) {
   return new Promise<void>((resolve, reject) => {
-    client.$.waitForReady(Date.now() + 10_000, (error) => {
+    hubClient.$.waitForReady(Date.now() + 10_000, (error) => {
       if (error) {
         reject(error);
       } else {
@@ -289,6 +328,15 @@ function stop(signal: string) {
   console.log(`Received ${signal}, stopping Hub monitor`);
   void postHeartbeat("stopping");
   stopped = true;
+  client?.close();
+}
+
+function reconnectDelayMs(attempt: number) {
+  return Math.min(60_000, 5_000 * Math.max(1, attempt));
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function hubEventTypeName(type?: HubEventType) {

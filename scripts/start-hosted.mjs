@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 
 const children = new Set();
+const restartTimers = new Map();
 let shuttingDown = false;
 
 const collectorUrl = process.env.COLLECTOR_URL ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`;
@@ -9,12 +10,12 @@ process.env.CLOUD_STORAGE_ONLY ??= "true";
 process.env.KAFKA_ENABLED ??= "false";
 process.env.BLOB_UPLOAD_ORIGINALS ??= "false";
 
-start("collector-api", ["dist/server.js"]);
+start("collector-api", ["dist/server.js"], { critical: true });
 setTimeout(() => {
-  start("hub-monitor", ["dist/monitor-hub.js"]);
+  start("hub-monitor", ["dist/monitor-hub.js"], { restart: true });
 }, 1500);
 
-function start(name, args) {
+function start(name, args, options = {}) {
   const child = spawn(process.execPath, args, {
     env: process.env,
     stdio: ["ignore", "pipe", "pipe"]
@@ -35,9 +36,35 @@ function start(name, args) {
 
     if (!shuttingDown) {
       console.error(`${name} exited with code ${code ?? "none"} signal ${signal ?? "none"}`);
-      shutdown(code ?? 1);
+
+      if (options.restart) {
+        scheduleRestart(name, args, options);
+        return;
+      }
+
+      if (options.critical) {
+        shutdown(code ?? 1);
+      }
     }
   });
+}
+
+function scheduleRestart(name, args, options) {
+  if (restartTimers.has(name)) {
+    return;
+  }
+
+  const delayMs = Number(process.env.HUB_MONITOR_RESTART_DELAY_MS ?? 10_000);
+  console.error(`Restarting ${name} in ${delayMs}ms`);
+  const timer = setTimeout(() => {
+    restartTimers.delete(name);
+
+    if (!shuttingDown) {
+      start(name, args, options);
+    }
+  }, delayMs);
+
+  restartTimers.set(name, timer);
 }
 
 function shutdown(code = 0) {
@@ -46,6 +73,10 @@ function shutdown(code = 0) {
   }
 
   shuttingDown = true;
+
+  for (const timer of restartTimers.values()) {
+    clearTimeout(timer);
+  }
 
   for (const child of children) {
     child.kill("SIGTERM");
