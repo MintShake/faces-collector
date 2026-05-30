@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GalleryControls } from "../gallery-controls";
+import { LiveRefresh } from "../live-refresh";
 import { getPfpGallery } from "@/lib/pfps";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export default async function BrowsePage() {
 
   return (
     <main className="shell">
+      <LiveRefresh renderedAt={new Date().toISOString()} />
       <header className="topbar">
         <div>
           <span className="appMark">Memory wall</span>

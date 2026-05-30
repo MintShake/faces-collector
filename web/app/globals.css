@@ -66,6 +66,42 @@ select {
   padding: 16px 0 64px;
 }
 
+.liveRefresh {
+  position: sticky;
+  top: 8px;
+  z-index: 8;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid rgba(7, 18, 31, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: var(--soft-shadow);
+  backdrop-filter: blur(16px);
+}
+
+.liveRefresh time {
+  color: color-mix(in srgb, var(--ink) 68%, var(--muted));
+}
+
+.liveDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--leaf);
+  box-shadow: 0 0 0 5px rgba(65, 214, 141, 0.16);
+}
+
+.liveDot.pending {
+  background: var(--sun);
+  box-shadow: 0 0 0 5px rgba(255, 207, 74, 0.18);
+}
+
 .miniHero {
   position: relative;
   display: grid;

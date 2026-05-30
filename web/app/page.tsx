@@ -1,4 +1,5 @@
 import { MiniAppHome } from "./miniapp-client";
+import { LiveRefresh } from "./live-refresh";
 import { getPfpGallery } from "@/lib/pfps";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export default async function Home() {
 
   return (
     <main className="shell">
+      <LiveRefresh renderedAt={new Date().toISOString()} />
       <MiniAppHome tiles={tiles} totalImages={totalImages} />
     </main>
   );

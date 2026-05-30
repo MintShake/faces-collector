@@ -4,6 +4,7 @@ import { getFidTile } from "@/lib/pfps";
 import { CompareButton } from "../../compare-button";
 import { HideButton } from "../../hide-button";
 import { LikePanel } from "../../like-panel";
+import { LiveRefresh } from "../../live-refresh";
 import { ReportButton } from "../../report-button";
 import { SafeImage } from "../../safe-image";
 import { ShareButton } from "../../share-button";
@@ -30,6 +31,7 @@ export default async function FidPage({
 
   return (
     <main className="shell detailShell">
+      <LiveRefresh renderedAt={new Date().toISOString()} />
       <header className="detailHeader">
         <Link className="backLink" href="/">
           Back
