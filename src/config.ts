@@ -23,5 +23,6 @@ export const config = {
   neynarFeedLimit: Number(process.env.NEYNAR_FEED_LIMIT ?? 100),
   neynarPollIntervalMs: Number(process.env.NEYNAR_POLL_INTERVAL_MS ?? 60_000),
   hubRpcEndpoint: process.env.HUB_RPC_ENDPOINT ?? "hub-grpc-api.neynar.com",
-  hubProfileRefreshIntervalMs: Number(process.env.HUB_PROFILE_REFRESH_INTERVAL_MS ?? 3_600_000)
+  hubProfileRefreshIntervalMs: Number(process.env.HUB_PROFILE_REFRESH_INTERVAL_MS ?? 3_600_000),
+  hubMonitorStaleEventMs: Number(process.env.HUB_MONITOR_STALE_EVENT_MS ?? 600_000)
 };

@@ -45,12 +45,16 @@ let connectedAt: string | undefined;
 let lastEventAt: string | undefined;
 let lastProfilePostAt: string | undefined;
 let lastError: string | undefined;
+let staleRestartRequested = false;
 
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 setInterval(() => {
   void postHeartbeat();
 }, 30_000).unref();
+setInterval(() => {
+  void restartStaleStream();
+}, 60_000).unref();
 
 while (!stopped) {
   await runSubscription();
@@ -73,6 +77,7 @@ async function runSubscription() {
     await waitForReady(client);
     connectedAt = new Date().toISOString();
     lastError = undefined;
+    staleRestartRequested = false;
     await postHeartbeat(reconnects > 0 ? "reconnected" : "connected");
     console.log(`Connected to Farcaster Hub stream at ${config.hubRpcEndpoint}`);
 
@@ -92,6 +97,7 @@ async function runSubscription() {
         break;
       }
 
+      staleRestartRequested = false;
       reconnects = 0;
       await handleEvent(event);
     }
@@ -310,6 +316,30 @@ async function postHeartbeat(status = "running") {
   } catch (error) {
     console.warn(`Could not post monitor heartbeat: ${errorMessage(error)}`);
   }
+}
+
+async function restartStaleStream() {
+  if (stopped || !client || !connectedAt) {
+    return;
+  }
+
+  const now = Date.now();
+  const latestActivityAt = lastEventAt ?? connectedAt;
+  const idleMs = now - Date.parse(latestActivityAt);
+
+  if (!Number.isFinite(idleMs) || idleMs < config.hubMonitorStaleEventMs) {
+    return;
+  }
+
+  if (staleRestartRequested) {
+    return;
+  }
+
+  staleRestartRequested = true;
+  lastError = `No Hub events for ${Math.round(idleMs / 1000)}s; restarting subscription`;
+  console.warn(lastError);
+  await postHeartbeat("stale_stream_restart");
+  client.close();
 }
 
 function waitForReady(hubClient: HubRpcClient) {
