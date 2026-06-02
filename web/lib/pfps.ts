@@ -40,7 +40,12 @@ export type FidProfile = {
 
 type GalleryOptions = {
   limit?: number;
+  offset?: number;
   imagesPerFid?: number;
+  sort?: "count" | "newest" | "oldest" | "fid" | "likes";
+  order?: "asc" | "desc";
+  query?: string;
+  minImages?: number;
 };
 
 export async function getPfpGallery(options: GalleryOptions = {}) {
@@ -107,6 +112,38 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
   }
 }
 
+export async function getRecentPfpImages(limit = 50) {
+  const gallery = await getBlobPfpGallery();
+
+  return gallery
+    .flatMap((tile) => tile.images.map((image) => ({ fid: tile.fid, image })))
+    .sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt))
+    .slice(0, limit);
+}
+
+export async function getPfpStats() {
+  const gallery = await getBlobPfpGallery();
+  const images = gallery.flatMap((tile) => tile.images.map((image) => ({ fid: tile.fid, image })));
+  const newest = [...images].sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt))[0];
+  const topTimeline = [...gallery].sort((a, b) => b.imageCount - a.imageCount)[0];
+  const mostLiked = [...images].sort((a, b) => b.image.likeCount - a.image.likeCount)[0];
+
+  return {
+    totalFids: gallery.length,
+    totalImages: images.length,
+    totalLikes: images.reduce((sum, item) => sum + item.image.likeCount, 0),
+    newest: newest ?? null,
+    topTimeline: topTimeline
+      ? {
+          fid: topTimeline.fid,
+          imageCount: topTimeline.imageCount,
+          latestImage: topTimeline.images[0]
+        }
+      : null,
+    mostLiked: mostLiked && mostLiked.image.likeCount > 0 ? mostLiked : null
+  };
+}
+
 async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}) {
   const blobs = await listAllBlobs("pfps/");
   const likeSummary = await getLikeSummaryMap();
@@ -169,17 +206,14 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
       };
     })
     .filter((tile) => tile.images.length > 0)
-    .sort((a, b) => {
-      const countDelta = b.imageCount - a.imageCount;
+    .filter((tile) => !options.query || String(tile.fid).includes(options.query))
+    .filter((tile) => !options.minImages || tile.imageCount >= options.minImages)
+    .sort((a, b) => compareTiles(a, b, options.sort ?? "count", options.order ?? "desc"));
 
-      if (countDelta !== 0) {
-        return countDelta;
-      }
+  const offset = options.offset ?? 0;
+  const limited = options.limit ? tiles.slice(offset, offset + options.limit) : tiles.slice(offset);
 
-      return newestTime(b) - newestTime(a);
-    });
-
-  return options.limit ? tiles.slice(0, options.limit) : tiles;
+  return limited;
 }
 
 async function listAllBlobs(prefix: string) {
@@ -331,6 +365,38 @@ function imageProxyBaseUrl() {
 
 function newestTime(tile: FidTile) {
   return Date.parse(tile.images[0]?.storedAt ?? "0");
+}
+
+function oldestTime(tile: FidTile) {
+  return Date.parse(tile.images.at(-1)?.storedAt ?? "0");
+}
+
+function totalLikes(tile: FidTile) {
+  return tile.images.reduce((sum, image) => sum + image.likeCount, 0);
+}
+
+function compareTiles(
+  a: FidTile,
+  b: FidTile,
+  sort: NonNullable<GalleryOptions["sort"]>,
+  order: NonNullable<GalleryOptions["order"]>
+) {
+  const direction = order === "asc" ? 1 : -1;
+  let result = 0;
+
+  if (sort === "count") {
+    result = a.imageCount - b.imageCount || newestTime(a) - newestTime(b);
+  } else if (sort === "newest") {
+    result = newestTime(a) - newestTime(b);
+  } else if (sort === "oldest") {
+    result = oldestTime(a) - oldestTime(b);
+  } else if (sort === "likes") {
+    result = totalLikes(a) - totalLikes(b) || newestTime(a) - newestTime(b);
+  } else {
+    result = a.fid - b.fid;
+  }
+
+  return result * direction;
 }
 
 function imageIdFor(fid: number, basename: string) {

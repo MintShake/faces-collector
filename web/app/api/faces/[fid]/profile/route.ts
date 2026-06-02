@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { corsHeaders } from "@/lib/api";
-import { getFidTile } from "@/lib/pfps";
+import { getFidProfile } from "@/lib/pfps";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +15,15 @@ export async function GET(
     return json({ ok: false, error: "fid must be a positive integer" }, 400);
   }
 
-  const tile = await getFidTile(numericFid);
+  const profile = await getFidProfile(numericFid);
 
-  if (!tile) {
-    return json({ ok: false, error: "fid not found" }, 404);
+  if (!profile) {
+    return json({ ok: false, error: "profile not found" }, 404);
   }
 
   return json({
     ok: true,
-    data: tile
+    data: profile
   });
 }
 

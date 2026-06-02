@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { corsHeaders } from "@/lib/api";
 import {
   getImageLikes,
   notifyPfpOwner,
@@ -37,11 +38,23 @@ export async function GET(request: Request) {
     (a, b) => Date.parse(b.likedAt) - Date.parse(a.likedAt)
   );
 
-  return NextResponse.json({
-    imageId,
-    count: record?.count ?? 0,
-    viewerLiked: Number.isInteger(viewerFid) ? Boolean(record?.likes[String(viewerFid)]) : false,
-    likes
+  return NextResponse.json(
+    {
+      imageId,
+      count: record?.count ?? 0,
+      viewerLiked: Number.isInteger(viewerFid) ? Boolean(record?.likes[String(viewerFid)]) : false,
+      likes
+    },
+    {
+      headers: corsHeaders()
+    }
+  );
+}
+
+export function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders()
   });
 }
 
