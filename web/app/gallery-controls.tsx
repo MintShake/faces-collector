@@ -39,12 +39,12 @@ export function GalleryControls({ tiles }: { tiles: FidTile[] }) {
     return [...tiles]
       .filter((tile) => String(tile.fid).includes(query.trim()))
       .filter((tile) => !hiddenFids.has(String(tile.fid)))
-      .filter((tile) => tile.images.length >= minimumCount)
+      .filter((tile) => tile.imageCount >= minimumCount)
       .sort((a, b) => compareTiles(a, b, sortMode, sortDirection));
   }, [hiddenFids, minimumCount, query, sortDirection, sortMode, tiles]);
 
-  const totalImages = filteredTiles.reduce((sum, tile) => sum + tile.images.length, 0);
-  const maxCount = Math.max(1, ...tiles.map((tile) => tile.images.length));
+  const totalImages = filteredTiles.reduce((sum, tile) => sum + tile.imageCount, 0);
+  const maxCount = Math.max(1, ...tiles.map((tile) => tile.imageCount));
 
   return (
     <>
@@ -127,7 +127,7 @@ function compareTiles(
   if (sortMode === "likes") {
     result = totalLikes(a) - totalLikes(b) || newestTime(a) - newestTime(b);
   } else if (sortMode === "count") {
-    result = a.images.length - b.images.length || newestTime(a) - newestTime(b);
+    result = a.imageCount - b.imageCount || newestTime(a) - newestTime(b);
   } else if (sortMode === "newest") {
     result = newestTime(a) - newestTime(b);
   } else if (sortMode === "oldest") {

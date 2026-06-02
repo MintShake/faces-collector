@@ -21,6 +21,7 @@ export type PfpImage = {
 export type FidTile = {
   fid: number;
   images: PfpImage[];
+  imageCount: number;
   profile?: FidProfile;
 };
 
@@ -37,12 +38,17 @@ export type FidProfile = {
   updatedAt?: string;
 };
 
-export async function getPfpGallery() {
-  return getBlobPfpGallery();
+type GalleryOptions = {
+  limit?: number;
+  imagesPerFid?: number;
+};
+
+export async function getPfpGallery(options: GalleryOptions = {}) {
+  return getBlobPfpGallery(options);
 }
 
 export async function getFidTile(fid: number): Promise<FidTile | undefined> {
-  const gallery = await getBlobPfpGallery();
+  const gallery = await getBlobPfpGallery({ fid });
   const tile = gallery.find((item) => item.fid === fid);
 
   if (!tile) {
@@ -101,7 +107,7 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
   }
 }
 
-async function getBlobPfpGallery() {
+async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}) {
   const blobs = await listAllBlobs("pfps/");
   const likeSummary = await getLikeSummaryMap();
   const byFid = new Map<number, Map<string, Partial<PfpImage> & { filename: string; storedAt: string; size: number }>>();
@@ -114,6 +120,11 @@ async function getBlobPfpGallery() {
     }
 
     const fid = Number(match[1]);
+
+    if (options.fid && fid !== options.fid) {
+      continue;
+    }
+
     const basename = match[2];
     const imageId = imageIdFor(fid, basename);
     const variant = match[3].toLowerCase() as "thumb" | "medium";
@@ -140,7 +151,7 @@ async function getBlobPfpGallery() {
     byFid.set(fid, images);
   }
 
-  return [...byFid.entries()]
+  const tiles = [...byFid.entries()]
     .map(([fid, imageMap]) => {
       const images = [...imageMap.values()]
         .filter((image): image is PfpImage => Boolean(image.url))
@@ -151,11 +162,15 @@ async function getBlobPfpGallery() {
         }));
 
       images.sort((a, b) => Date.parse(b.storedAt) - Date.parse(a.storedAt));
-      return { fid, images };
+      return {
+        fid,
+        imageCount: images.length,
+        images: options.imagesPerFid ? images.slice(0, options.imagesPerFid) : images
+      };
     })
     .filter((tile) => tile.images.length > 0)
     .sort((a, b) => {
-      const countDelta = b.images.length - a.images.length;
+      const countDelta = b.imageCount - a.imageCount;
 
       if (countDelta !== 0) {
         return countDelta;
@@ -163,6 +178,8 @@ async function getBlobPfpGallery() {
 
       return newestTime(b) - newestTime(a);
     });
+
+  return options.limit ? tiles.slice(0, options.limit) : tiles;
 }
 
 async function listAllBlobs(prefix: string) {

@@ -94,9 +94,9 @@ export function MiniAppHome({
             {user && <AddAppButton user={user} variant="primary" label="Add Faces" />}
             <ShareButton
               fid={userTile?.fid}
-              count={userTile?.images.length}
+              count={userTile?.imageCount}
               label={userTile ? "Share my eras" : "Share Faces"}
-              text={userTile ? `My PFP eras are on Faces. ${userTile.images.length.toLocaleString()} moments saved.` : undefined}
+              text={userTile ? `My PFP eras are on Faces. ${userTile.imageCount.toLocaleString()} moments saved.` : undefined}
             />
           </div>
           <div className="memoryRibbon" aria-label="Faces highlights">
@@ -124,7 +124,7 @@ export function MiniAppHome({
           <h2>{user?.fid ? `FID ${user.fid}` : "Open in Farcaster"}</h2>
           <p>
             {userTile
-              ? `${userTile.images.length.toLocaleString()} saved PFP${userTile.images.length === 1 ? "" : "s"} in your personal timeline.`
+              ? `${userTile.imageCount.toLocaleString()} saved PFP${userTile.imageCount === 1 ? "" : "s"} in your personal timeline.`
               : user?.fid
                 ? "You are identified. Faces is ready to catch your next chapter when your PFP changes."
                 : "The Mini App detects your Farcaster account automatically and puts your own timeline first."}
@@ -137,7 +137,7 @@ export function MiniAppHome({
                 <SafeImage key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
               ))}
             </div>
-            <ShareButton fid={userTile.fid} count={userTile.images.length} label="Share my timeline" variant="primary" />
+            <ShareButton fid={userTile.fid} count={userTile.imageCount} label="Share my timeline" variant="primary" />
           </div>
         ) : (
           <div className="welcomeSummary">
@@ -161,7 +161,7 @@ export function MiniAppHome({
           <p>faces saved</p>
         </div>
         <div>
-          <span>{topMoment ? `${topMoment.images.length}x` : "live"}</span>
+          <span>{topMoment ? `${topMoment.imageCount}x` : "live"}</span>
           <p>{topMoment ? `biggest timeline: FID ${topMoment.fid}` : "watching new eras"}</p>
         </div>
       </section>

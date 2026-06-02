@@ -6,8 +6,8 @@ import { getPfpGallery } from "@/lib/pfps";
 export const dynamic = "force-dynamic";
 
 export default async function BrowsePage() {
-  const tiles = await getPfpGallery();
-  const totalImages = tiles.reduce((sum, tile) => sum + tile.images.length, 0);
+  const tiles = await getPfpGallery({ limit: 240, imagesPerFid: 5 });
+  const totalImages = tiles.reduce((sum, tile) => sum + tile.imageCount, 0);
 
   return (
     <main className="shell">
@@ -17,7 +17,7 @@ export default async function BrowsePage() {
           <span className="appMark">Memory wall</span>
           <h1>Browse every era</h1>
           <p>
-            {tiles.length.toLocaleString()} people, {totalImages.toLocaleString()} saved PFP moments.
+            Showing {tiles.length.toLocaleString()} people and {totalImages.toLocaleString()} saved PFP moments.
           </p>
         </div>
         <Link className="backLink" href="/">
