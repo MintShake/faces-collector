@@ -46,7 +46,9 @@ export function MiniAppHome({
             setUser(context.user);
           }
 
-          await fetch("/api/users", {
+          await sdk.actions.ready();
+
+          void fetch("/api/users", {
             method: "POST",
             headers: {
               "content-type": "application/json"
@@ -55,8 +57,9 @@ export function MiniAppHome({
               ...context.user,
               notificationDetails: context.client.notificationDetails
             })
+          }).catch(() => {
+            // User registration is useful, but it should never hold the Mini App splash open.
           });
-          await sdk.actions.ready();
         }
       } catch {
         // Browser preview still works outside Farcaster.

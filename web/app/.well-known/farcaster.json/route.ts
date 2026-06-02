@@ -2,23 +2,14 @@ import { NextResponse } from "next/server";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
 const splashBackgroundColor = "#07121f";
-const accountAssociation = {
-  header:
-    process.env.FARCASTER_ACCOUNT_ASSOCIATION_HEADER ??
-    "eyJmaWQiOjY3OTEwMywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDE1ODcyZDQ5RDkwNjM4YWU4Y2VkZDQxYkExMmU1MmU2RjRGMjZEODQifQ",
-  payload:
-    process.env.FARCASTER_ACCOUNT_ASSOCIATION_PAYLOAD ??
-    "eyJkb21haW4iOiJ3ZWItc2lnbWEtdGhyZWUtMzIudmVyY2VsLmFwcCJ9",
-  signature:
-    process.env.FARCASTER_ACCOUNT_ASSOCIATION_SIGNATURE ??
-    "ilSQeIk1kGI6J4nY3jz2QSRzEoC+1d7vnIKmNyqHzysszz4/wOWTrkE6MiWxYR57uf3NM1kQupctURnUu/80nRs="
-};
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
+  const accountAssociation = getAccountAssociation();
+
   return NextResponse.json({
-    accountAssociation,
+    ...(accountAssociation ? { accountAssociation } : {}),
     miniapp: {
       version: "1",
       name: "Faces",
@@ -39,4 +30,20 @@ export function GET() {
       requiredCapabilities: ["actions.ready", "actions.addMiniApp"]
     }
   });
+}
+
+function getAccountAssociation() {
+  const header = process.env.FARCASTER_ACCOUNT_ASSOCIATION_HEADER;
+  const payload = process.env.FARCASTER_ACCOUNT_ASSOCIATION_PAYLOAD;
+  const signature = process.env.FARCASTER_ACCOUNT_ASSOCIATION_SIGNATURE;
+
+  if (!header || !payload || !signature) {
+    return undefined;
+  }
+
+  return {
+    header,
+    payload,
+    signature
+  };
 }
