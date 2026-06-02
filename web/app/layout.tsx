@@ -7,10 +7,10 @@ const miniAppEmbed = {
   version: "1",
   imageUrl: `${appUrl}/miniapp/embed.png`,
   button: {
-    title: "See your PFP eras",
+    title: "Open hub",
     action: {
       type: "launch_miniapp",
-      name: "Faces",
+      name: "Shakezz Hub",
       url: appUrl,
       splashImageUrl: `${appUrl}/miniapp/splash.png`,
       splashBackgroundColor
@@ -20,11 +20,11 @@ const miniAppEmbed = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
-  title: "Faces - Your Farcaster PFP Timeline",
-  description: "Save, like, share, and rediscover the PFP eras that show how Farcaster people grow.",
+  title: "Shakezz Hub",
+  description: "Private Faces operations dashboard.",
   openGraph: {
-    title: "Faces - Your Farcaster PFP Timeline",
-    description: "See the icons, eras, jokes, and glow-ups behind every Farcaster PFP timeline.",
+    title: "Shakezz Hub",
+    description: "Private Faces operations dashboard.",
     images: ["/miniapp/embed.png"]
   },
   icons: {

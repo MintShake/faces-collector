@@ -5,9 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { FidTile } from "@/lib/pfps";
 import { AddAppButton } from "./add-app-button";
-import { FidCard } from "./fid-card";
 import { SafeImage } from "./safe-image";
-import { ShareButton } from "./share-button";
 
 type MiniAppUser = {
   fid: number;
@@ -16,38 +14,95 @@ type MiniAppUser = {
   pfpUrl?: string;
 };
 
+type PfpStats = {
+  totalFids: number;
+  totalImages: number;
+  totalLikes: number;
+  newest: { fid: number; image: { id: string; url: string; thumbUrl?: string; storedAt: string; size: number } } | null;
+  topTimeline: { fid: number; imageCount: number } | null;
+  mostLiked: { fid: number; image: { likeCount: number; storedAt: string; url: string; thumbUrl?: string } } | null;
+};
+
+type StorageStats = {
+  allObjects: number;
+  allBytes: number;
+  allMb: number;
+  pfpObjects: number;
+  pfpBytes: number;
+  pfpMb: number;
+  pfpImages: number;
+  uniqueFidsWithPfps: number;
+  profileStates: number;
+  socialObjects: number;
+  newestPfp: { key: string; storedAt: string; size: number } | null;
+  newestProfileState: { key: string; storedAt: string; size: number } | null;
+};
+
+type CollectorHealth = {
+  ok?: boolean;
+  error?: string;
+  monitor?: {
+    status?: string;
+    startedAt?: string;
+    connectedAt?: string;
+    seenEvents?: number;
+    postedProfiles?: number;
+    reconnects?: number;
+    lastEventAt?: string;
+    lastProfilePostAt?: string;
+    lastHeartbeatAt?: string;
+    lastError?: string;
+  };
+};
+
+const authorizedFid = Number(
+  process.env.NEXT_PUBLIC_SHAKEZZ_FID ??
+    process.env.NEXT_PUBLIC_ADMIN_FID ??
+    679103
+);
+const storageFreeTierGb = Number(process.env.NEXT_PUBLIC_TIGRIS_FREE_STORAGE_GB ?? 5);
+
 export function MiniAppHome({
   tiles,
-  totalImages
+  stats,
+  storage,
+  collector
 }: {
   tiles: FidTile[];
-  totalImages: number;
+  stats: PfpStats;
+  storage: StorageStats;
+  collector: CollectorHealth;
 }) {
   const [user, setUser] = useState<MiniAppUser>();
-  const userTile = useMemo(
-    () => (user ? tiles.find((tile) => tile.fid === user.fid) : undefined),
-    [tiles, user]
-  );
-  const latestTiles = tiles.slice(0, 6);
-  const heroTile = userTile ?? (user ? undefined : latestTiles[0]);
-  const topMoment = latestTiles[0];
-  const recentChanges = useMemo(() => newestImages(tiles).slice(0, 8), [tiles]);
-  const mostLoved = useMemo(() => mostLikedImages(tiles).slice(0, 6), [tiles]);
+  const [sessionState, setSessionState] = useState<"checking" | "browser" | "ready">("checking");
+  const recentChanges = useMemo(() => newestImages(tiles).slice(0, 12), [tiles]);
+  const isAuthorized = user?.fid === authorizedFid;
+  const latestImage = stats.newest?.image;
+  const storageLimitMb = storageFreeTierGb * 1024;
+  const storagePercent = storageLimitMb > 0 ? (storage.allMb / storageLimitMb) * 100 : 0;
 
   useEffect(() => {
     let cancelled = false;
 
     async function bootMiniApp() {
       try {
-        if (await sdk.isInMiniApp()) {
-          const context = await sdk.context;
-
+        if (!(await sdk.isInMiniApp())) {
           if (!cancelled) {
-            setUser(context.user);
+            setSessionState("browser");
           }
+          return;
+        }
 
-          await sdk.actions.ready();
+        const context = await sdk.context;
 
+        if (!cancelled) {
+          setUser(context.user);
+          setSessionState("ready");
+        }
+
+        await sdk.actions.ready();
+
+        if (context.user.fid === authorizedFid) {
           void fetch("/api/users", {
             method: "POST",
             headers: {
@@ -58,11 +113,13 @@ export function MiniAppHome({
               notificationDetails: context.client.notificationDetails
             })
           }).catch(() => {
-            // User registration is useful, but it should never hold the Mini App splash open.
+            // Registration is optional for the private dashboard.
           });
         }
       } catch {
-        // Browser preview still works outside Farcaster.
+        if (!cancelled) {
+          setSessionState("browser");
+        }
       }
     }
 
@@ -73,172 +130,198 @@ export function MiniAppHome({
     };
   }, []);
 
+  if (sessionState === "checking") {
+    return (
+      <section className="hubGate">
+        <span className="hubLabel">Shakezz Hub</span>
+        <h1>Verifying session</h1>
+        <p>Waiting for Farcaster Mini App context.</p>
+      </section>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <section className="hubGate">
+        <span className="hubLabel">Shakezz Hub</span>
+        <h1>Restricted</h1>
+        <p>
+          Open this Mini App as the authorized Farcaster account.
+          {user ? ` Current FID: ${user.fid}.` : " Browser preview is not authorized."}
+        </p>
+        <dl className="hubFacts">
+          <div>
+            <dt>Allowed FID</dt>
+            <dd>{authorizedFid}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>{sessionState === "browser" ? "No Mini App session" : "FID mismatch"}</dd>
+          </div>
+        </dl>
+      </section>
+    );
+  }
+
   return (
     <>
-      <section className="miniHero">
-        <div className="heroCopy">
-          <span className="appMark">Faces</span>
-          <h1>{user ? "Your face, through every era" : "Every PFP has a before and after"}</h1>
-          <p>
-            {user
-              ? `Welcome${user.username ? `, @${user.username}` : ""}. Your timeline lives first here, then the wider Farcaster memory wall opens up.`
-              : "Faces saves the little identity shifts people forget: the icons, eras, jokes, glow-ups, and quiet resets that become a timeline."}
-          </p>
-          <div className="heroActions">
-            {userTile ? (
-              <Link className="primaryButton" href={`/fid/${userTile.fid}`}>
-                View your timeline
-              </Link>
-            ) : (
-              <Link className="primaryButton" href="/browse">
-                Browse timelines
-              </Link>
-            )}
-            {user && <AddAppButton user={user} variant="primary" label="Add Faces" />}
-            <ShareButton
-              fid={userTile?.fid}
-              count={userTile?.imageCount}
-              label={userTile ? "Share my eras" : "Share Faces"}
-              text={userTile ? `My PFP eras are on Faces. ${userTile.imageCount.toLocaleString()} moments saved.` : undefined}
-            />
-          </div>
-          <div className="memoryRibbon" aria-label="Faces highlights">
-            <span>personal archive</span>
-            <span>community memories</span>
-            <span>PFP eras</span>
-          </div>
+      <section className="hubHeader">
+        <div>
+          <span className="hubLabel">Shakezz Hub</span>
+          <h1>Faces operations</h1>
+          <p>Private project dashboard for collector, storage, and public data health.</p>
         </div>
+        <div className="hubIdentity">
+          {user?.pfpUrl && <SafeImage src={user.pfpUrl} alt="" />}
+          <div>
+            <strong>{user?.username ? `@${user.username}` : `FID ${authorizedFid}`}</strong>
+            <span>authorized</span>
+          </div>
+          {user && <AddAppButton user={user} label="Register notifications" />}
+        </div>
+      </section>
 
-        <div className="heroStack" aria-hidden="true">
-          {heroImages(heroTile, user).map((image, index) => (
-            <SafeImage
-              key={`${image.filename}-${index}`}
-              src={image.thumbUrl ?? image.url}
-              alt=""
-              style={{ "--i": index } as React.CSSProperties}
-            />
+      <section className="hubGrid" aria-label="Faces operating metrics">
+        <Metric label="FIDs" value={stats.totalFids} detail={`${storage.uniqueFidsWithPfps.toLocaleString()} with PFP objects`} />
+        <Metric label="PFPs" value={stats.totalImages} detail={`${storage.pfpMb.toLocaleString()} MB image storage`} />
+        <Metric label="Objects" value={storage.allObjects} detail={`${storage.allMb.toLocaleString()} MB total`} />
+        <Metric label="Likes" value={stats.totalLikes} detail={stats.mostLiked ? `Top image has ${stats.mostLiked.image.likeCount}` : "No liked images yet"} />
+        <Metric label="Profiles" value={storage.profileStates} detail={storage.newestProfileState ? `Latest ${formatDate(storage.newestProfileState.storedAt)}` : "No profile state"} />
+        <Metric label="Social files" value={storage.socialObjects} detail="likes and registered users" />
+      </section>
+
+      <section className="hubPanel">
+        <div className="hubPanelHeader">
+          <div>
+            <span className="hubLabel">Storage</span>
+            <h2>Tigris usage</h2>
+          </div>
+          <strong>{storagePercent.toFixed(2)}% of {storageFreeTierGb} GB</strong>
+        </div>
+        <div className="usageTrack" aria-label="Estimated storage usage">
+          <span style={{ width: `${Math.min(100, storagePercent)}%` }} />
+        </div>
+        <dl className="hubFacts">
+          <div>
+            <dt>Total bytes</dt>
+            <dd>{formatBytes(storage.allBytes)}</dd>
+          </div>
+          <div>
+            <dt>PFP bytes</dt>
+            <dd>{formatBytes(storage.pfpBytes)}</dd>
+          </div>
+          <div>
+            <dt>Newest PFP</dt>
+            <dd>{storage.newestPfp ? formatDate(storage.newestPfp.storedAt) : "none"}</dd>
+          </div>
+          <div>
+            <dt>Billing note</dt>
+            <dd>Storage estimate only. Request and billing totals are in Tigris.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="hubPanel">
+        <div className="hubPanelHeader">
+          <div>
+            <span className="hubLabel">Collector</span>
+            <h2>Render monitor</h2>
+          </div>
+          <strong>{collector.ok ? collector.monitor?.status ?? "online" : "check failed"}</strong>
+        </div>
+        <dl className="hubFacts">
+          <div>
+            <dt>Seen events</dt>
+            <dd>{collector.monitor?.seenEvents?.toLocaleString() ?? "unknown"}</dd>
+          </div>
+          <div>
+            <dt>Posted profiles</dt>
+            <dd>{collector.monitor?.postedProfiles?.toLocaleString() ?? "unknown"}</dd>
+          </div>
+          <div>
+            <dt>Last event</dt>
+            <dd>{collector.monitor?.lastEventAt ? formatDate(collector.monitor.lastEventAt) : "unknown"}</dd>
+          </div>
+          <div>
+            <dt>Last heartbeat</dt>
+            <dd>{collector.monitor?.lastHeartbeatAt ? formatDate(collector.monitor.lastHeartbeatAt) : collector.error ?? "unknown"}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="hubPanel">
+        <div className="hubPanelHeader">
+          <div>
+            <span className="hubLabel">Latest writes</span>
+            <h2>Recent PFPs</h2>
+          </div>
+          <Link className="textButton" href="/browse">Browse</Link>
+        </div>
+        <div className="hubRecent">
+          {recentChanges.map(({ fid, image }) => (
+            <Link key={image.id} href={`/fid/${fid}`} className="hubRecentItem">
+              <SafeImage src={image.thumbUrl ?? image.url} alt="" />
+              <span>FID {fid}</span>
+              <strong>{formatDate(image.storedAt)}</strong>
+            </Link>
           ))}
         </div>
       </section>
 
-      <section className="welcomePanel" aria-label="Your Faces status">
-        <div>
-          <span className="eyebrow">Start with you</span>
-          <h2>{user?.fid ? `FID ${user.fid}` : "Open in Farcaster"}</h2>
-          <p>
-            {userTile
-              ? `${userTile.imageCount.toLocaleString()} saved PFP${userTile.imageCount === 1 ? "" : "s"} in your personal timeline.`
-              : user?.fid
-                ? "You are identified. Faces is ready to catch your next chapter when your PFP changes."
-                : "The Mini App detects your Farcaster account automatically and puts your own timeline first."}
-          </p>
-        </div>
-        {userTile ? (
-          <div className="welcomeSummary">
-            <div className="welcomePreview">
-              {userTile.images.slice(0, 4).map((image) => (
-                <SafeImage key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
-              ))}
-            </div>
-            <ShareButton fid={userTile.fid} count={userTile.imageCount} label="Share my timeline" variant="primary" />
+      <section className="hubPanel">
+        <div className="hubPanelHeader">
+          <div>
+            <span className="hubLabel">Links</span>
+            <h2>Project endpoints</h2>
           </div>
-        ) : (
-          <div className="welcomeSummary">
-            <div className={user?.pfpUrl ? "welcomePreview" : "welcomePreview placeholderPreview"} aria-hidden="true">
-              {heroImages(heroTile, user).slice(0, 4).map((image) => (
-                <SafeImage key={image.filename} src={image.thumbUrl ?? image.url} alt="" />
-              ))}
-            </div>
-            {user && <AddAppButton user={user} label="Watch my first era" />}
-          </div>
-        )}
-      </section>
-
-      <section className="statsStrip" aria-label="Collection stats">
-        <div>
-          <span>{tiles.length.toLocaleString()}</span>
-          <p>people remembered</p>
         </div>
-        <div>
-          <span>{totalImages.toLocaleString()}</span>
-          <p>faces saved</p>
-        </div>
-        <div>
-          <span>{topMoment ? `${topMoment.imageCount}x` : "live"}</span>
-          <p>{topMoment ? `biggest timeline: FID ${topMoment.fid}` : "watching new eras"}</p>
+        <div className="hubLinks">
+          <a href="/api/faces/stats" target="_blank" rel="noreferrer">Public stats API</a>
+          <a href="/api/faces?limit=20&imagesPerFid=2" target="_blank" rel="noreferrer">Public list API</a>
+          <a href="/.well-known/farcaster.json" target="_blank" rel="noreferrer">Mini App manifest</a>
+          <a href="https://faces-collector.onrender.com/health" target="_blank" rel="noreferrer">Collector health</a>
         </div>
       </section>
 
-      {latestTiles.length > 0 ? (
-        <>
-          {recentChanges.length > 0 && (
-            <section className="homeSection" aria-label="Recent PFP changes">
-              <div className="sectionHeading">
-                <div>
-                  <span className="eyebrow">Live changes</span>
-                  <h2>Fresh eras</h2>
-                </div>
-                <Link className="textButton" href="/browse">
-                  Browse all
-                </Link>
-              </div>
-              <div className="changeRail">
-                {recentChanges.map(({ fid, image }) => (
-                  <Link key={image.id} className="changeCard" href={`/fid/${fid}`}>
-                    <SafeImage src={image.thumbUrl ?? image.url} alt="" />
-                    <span>FID {fid}</span>
-                    <strong>{formatShortDate(image.storedAt)}</strong>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {mostLoved.length > 0 && (
-            <section className="homeSection" aria-label="Most loved PFPs">
-              <div className="sectionHeading">
-                <div>
-                  <span className="eyebrow">Community favorites</span>
-                  <h2>Most loved</h2>
-                </div>
-              </div>
-              <div className="changeRail lovedRail">
-                {mostLoved.map(({ fid, image }) => (
-                  <Link key={image.id} className="changeCard" href={`/fid/${fid}`}>
-                    <SafeImage src={image.thumbUrl ?? image.url} alt="" />
-                    <span>FID {fid}</span>
-                    <strong>{image.likeCount.toLocaleString()} likes</strong>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section className="homeSection" aria-label="Recent PFP timelines">
-            <div className="sectionHeading">
+      {latestImage && (
+        <section className="hubPanel">
+          <div className="hubPanelHeader">
+            <div>
+              <span className="hubLabel">Newest object</span>
+              <h2>Last new PFP</h2>
+            </div>
+            <strong>FID {stats.newest?.fid}</strong>
+          </div>
+          <div className="hubNewest">
+            <SafeImage src={latestImage.thumbUrl ?? latestImage.url} alt="" />
+            <dl className="hubFacts">
               <div>
-                <span className="eyebrow">Memory wall</span>
-                <h2>People changing in public</h2>
+                <dt>Stored</dt>
+                <dd>{formatDate(latestImage.storedAt)}</dd>
               </div>
-              <Link className="textButton" href="/browse">
-                View all
-              </Link>
-            </div>
-            <div className="tileGrid homeGrid">
-              {latestTiles.map((tile) => (
-                <FidCard key={tile.fid} tile={tile} />
-              ))}
-            </div>
-          </section>
-        </>
-      ) : (
-        <section className="emptyState">
-          <h2>Faces is watching now</h2>
-          <p>Open in Farcaster, add the Mini App, and your first saved era will appear when your PFP changes.</p>
-          {user && <AddAppButton user={user} variant="primary" label="Add Faces" />}
+              <div>
+                <dt>Size</dt>
+                <dd>{formatBytes(latestImage.size)}</dd>
+              </div>
+              <div>
+                <dt>Image ID</dt>
+                <dd>{latestImage.id}</dd>
+              </div>
+            </dl>
+          </div>
         </section>
       )}
     </>
+  );
+}
+
+function Metric({ label, value, detail }: { label: string; value: number; detail: string }) {
+  return (
+    <article className="hubMetric">
+      <span>{label}</span>
+      <strong>{value.toLocaleString()}</strong>
+      <p>{detail}</p>
+    </article>
   );
 }
 
@@ -248,14 +331,7 @@ function newestImages(tiles: FidTile[]) {
     .sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt));
 }
 
-function mostLikedImages(tiles: FidTile[]) {
-  return tiles
-    .flatMap((tile) => tile.images.map((image) => ({ fid: tile.fid, image })))
-    .filter(({ image }) => image.likeCount > 0)
-    .sort((a, b) => b.image.likeCount - a.image.likeCount);
-}
-
-function formatShortDate(value: string) {
+function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
     month: "short",
     day: "numeric",
@@ -264,34 +340,14 @@ function formatShortDate(value: string) {
   }).format(new Date(value));
 }
 
-function heroImages(tile?: FidTile, user?: MiniAppUser) {
-  const images = tile?.images.slice(0, 5) ?? [];
-
-  if (images.length > 0) {
-    return images;
+function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes.toLocaleString()} B`;
   }
 
-  if (user?.pfpUrl) {
-    return [
-      {
-        id: `current-${user.fid}`,
-        filename: `current-${user.fid}`,
-        url: user.pfpUrl,
-        size: 0,
-        storedAt: new Date(0).toISOString(),
-        likeCount: 0
-      }
-    ];
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
   }
 
-  return [
-    {
-      id: "fallback",
-      filename: "fallback",
-      url: "/miniapp/icon.png",
-      size: 0,
-      storedAt: new Date(0).toISOString(),
-      likeCount: 0
-    }
-  ];
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }

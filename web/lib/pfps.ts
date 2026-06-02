@@ -144,6 +144,56 @@ export async function getPfpStats() {
   };
 }
 
+export async function getObjectStorageStats() {
+  const objects = await listAllBlobs("");
+  const fidSet = new Set<string>();
+  let allBytes = 0;
+  let pfpBytes = 0;
+  let pfpObjects = 0;
+  let pfpImages = 0;
+  let profileStates = 0;
+  let socialObjects = 0;
+  let newestPfp: { key: string; storedAt: string; size: number } | undefined;
+  let newestProfileState: { key: string; storedAt: string; size: number } | undefined;
+
+  for (const object of objects) {
+    allBytes += object.size;
+
+    const pfpMatch = object.pathname.match(/^pfps\/(\d+)\//);
+
+    if (pfpMatch) {
+      pfpObjects += 1;
+      pfpBytes += object.size;
+      fidSet.add(pfpMatch[1]);
+
+      if (object.pathname.endsWith(".webp")) {
+        pfpImages += 1;
+        newestPfp = newestObject(newestPfp, object);
+      }
+    } else if (object.pathname.startsWith("state/fids/") && object.pathname.endsWith(".json")) {
+      profileStates += 1;
+      newestProfileState = newestObject(newestProfileState, object);
+    } else if (object.pathname.startsWith("social/")) {
+      socialObjects += 1;
+    }
+  }
+
+  return {
+    allObjects: objects.length,
+    allBytes,
+    allMb: bytesToMb(allBytes),
+    pfpObjects,
+    pfpBytes,
+    pfpMb: bytesToMb(pfpBytes),
+    pfpImages,
+    uniqueFidsWithPfps: fidSet.size,
+    profileStates,
+    socialObjects,
+    newestPfp: newestPfp ?? null,
+    newestProfileState: newestProfileState ?? null
+  };
+}
+
 async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}) {
   const blobs = await listAllBlobs("pfps/");
   const likeSummary = await getLikeSummaryMap();
@@ -274,6 +324,25 @@ async function listAllBlobs(prefix: string) {
   } while (cursor);
 
   return blobs;
+}
+
+function newestObject(
+  current: { key: string; storedAt: string; size: number } | undefined,
+  object: { pathname: string; size: number; uploadedAt: Date }
+) {
+  if (current && Date.parse(current.storedAt) >= object.uploadedAt.getTime()) {
+    return current;
+  }
+
+  return {
+    key: object.pathname,
+    storedAt: object.uploadedAt.toISOString(),
+    size: object.size
+  };
+}
+
+function bytesToMb(bytes: number) {
+  return Number((bytes / 1024 / 1024).toFixed(2));
 }
 
 let cachedS3Client: S3Client | undefined;
