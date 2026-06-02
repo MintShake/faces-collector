@@ -582,6 +582,18 @@ p {
   cursor: pointer;
 }
 
+.loadError {
+  margin: 12px 0 0;
+  color: var(--coral);
+  font-weight: 850;
+}
+
+.loadMoreBar {
+  display: flex;
+  justify-content: center;
+  padding: 22px 0 0;
+}
+
 .emptyState {
   margin-top: 18px;
   padding: 30px;

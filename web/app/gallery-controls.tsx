@@ -6,13 +6,35 @@ import { FidCard } from "./fid-card";
 
 type SortMode = "likes" | "count" | "newest" | "oldest" | "fid";
 type SortDirection = "desc" | "asc";
+const pageSize = 240;
 
-export function GalleryControls({ tiles }: { tiles: FidTile[] }) {
+type FacesApiResponse = {
+  ok: boolean;
+  count: number;
+  totalFids: number;
+  totalImages: number;
+  data: FidTile[];
+};
+
+export function GalleryControls({
+  tiles,
+  initialTotalFids,
+  initialTotalImages
+}: {
+  tiles: FidTile[];
+  initialTotalFids: number;
+  initialTotalImages: number;
+}) {
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("likes");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [minimumCount, setMinimumCount] = useState(1);
   const [hiddenFids, setHiddenFids] = useState<Set<string>>(new Set());
+  const [loadedTiles, setLoadedTiles] = useState(tiles);
+  const [totalFids, setTotalFids] = useState(initialTotalFids);
+  const [totalImages, setTotalImages] = useState(initialTotalImages);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string>();
 
   useEffect(() => {
     function loadHiddenFids() {
@@ -35,16 +57,27 @@ export function GalleryControls({ tiles }: { tiles: FidTile[] }) {
     };
   }, []);
 
-  const filteredTiles = useMemo(() => {
-    return [...tiles]
-      .filter((tile) => String(tile.fid).includes(query.trim()))
-      .filter((tile) => !hiddenFids.has(String(tile.fid)))
-      .filter((tile) => tile.imageCount >= minimumCount)
-      .sort((a, b) => compareTiles(a, b, sortMode, sortDirection));
-  }, [hiddenFids, minimumCount, query, sortDirection, sortMode, tiles]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const handle = window.setTimeout(() => {
+      void fetchTiles(0, true, controller.signal);
+    }, 250);
 
-  const totalImages = filteredTiles.reduce((sum, tile) => sum + tile.imageCount, 0);
-  const maxCount = Math.max(1, ...tiles.map((tile) => tile.imageCount));
+    return () => {
+      controller.abort();
+      window.clearTimeout(handle);
+    };
+  }, [minimumCount, query, sortDirection, sortMode]);
+
+  const visibleTiles = useMemo(() => {
+    return loadedTiles
+      .filter((tile) => !hiddenFids.has(String(tile.fid)))
+      .sort((a, b) => compareTiles(a, b, sortMode, sortDirection));
+  }, [hiddenFids, loadedTiles, sortDirection, sortMode]);
+
+  const visibleImageCount = visibleTiles.reduce((sum, tile) => sum + tile.imageCount, 0);
+  const maxCount = Math.max(1, ...loadedTiles.map((tile) => tile.imageCount));
+  const hasMore = loadedTiles.length < totalFids;
 
   return (
     <>
@@ -95,7 +128,7 @@ export function GalleryControls({ tiles }: { tiles: FidTile[] }) {
       </section>
 
       <p className="resultCount">
-        Showing {filteredTiles.length.toLocaleString()} FIDs and {totalImages.toLocaleString()} logged PFPs
+        Showing {visibleTiles.length.toLocaleString()} of {totalFids.toLocaleString()} FIDs and {visibleImageCount.toLocaleString()} of {totalImages.toLocaleString()} logged PFPs
         {hiddenFids.size > 0 && (
           <button className="inlineReset" type="button" onClick={() => {
             window.localStorage.removeItem("faces.hiddenFids");
@@ -105,14 +138,68 @@ export function GalleryControls({ tiles }: { tiles: FidTile[] }) {
           </button>
         )}
       </p>
+      {loadError && <p className="loadError">{loadError}</p>}
 
       <section className="tileGrid" aria-label="Farcaster FID PFP history">
-        {filteredTiles.map((tile) => (
+        {visibleTiles.map((tile) => (
           <FidCard key={tile.fid} tile={tile} />
         ))}
       </section>
+
+      {hasMore && (
+        <div className="loadMoreBar">
+          <button className="primaryButton" type="button" onClick={() => void fetchTiles(loadedTiles.length, false)} disabled={isLoading}>
+            {isLoading ? "Loading" : "Load more"}
+          </button>
+        </div>
+      )}
     </>
   );
+
+  async function fetchTiles(offset: number, replace: boolean, signal?: AbortSignal) {
+    setIsLoading(true);
+    setLoadError(undefined);
+
+    try {
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(offset),
+        imagesPerFid: "5",
+        sort: sortMode,
+        order: sortDirection,
+        minImages: String(minimumCount)
+      });
+      const trimmedQuery = query.trim();
+
+      if (trimmedQuery) {
+        params.set("q", trimmedQuery);
+      }
+
+      const response = await fetch(`/api/faces?${params}`, { signal });
+
+      if (!response.ok) {
+        throw new Error(`Could not load gallery page: ${response.status}`);
+      }
+
+      const body = await response.json() as FacesApiResponse;
+
+      if (!body.ok) {
+        throw new Error("Gallery API returned an error");
+      }
+
+      setTotalFids(body.totalFids);
+      setTotalImages(body.totalImages);
+      setLoadedTiles((current) => replace ? body.data : mergeTiles(current, body.data));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      setLoadError(error instanceof Error ? error.message : "Could not load more FIDs");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 }
 
 function compareTiles(
@@ -157,4 +244,14 @@ function clampNumber(value: number, min: number, max: number) {
   }
 
   return Math.min(max, Math.max(min, Math.trunc(value)));
+}
+
+function mergeTiles(current: FidTile[], next: FidTile[]) {
+  const byFid = new Map(current.map((tile) => [tile.fid, tile]));
+
+  for (const tile of next) {
+    byFid.set(tile.fid, tile);
+  }
+
+  return [...byFid.values()];
 }

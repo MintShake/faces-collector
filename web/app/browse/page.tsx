@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { GalleryControls } from "../gallery-controls";
 import { LiveRefresh } from "../live-refresh";
-import { getPfpGallery } from "@/lib/pfps";
+import { getPfpGallery, getPfpStats } from "@/lib/pfps";
 
 export const dynamic = "force-dynamic";
 
 export default async function BrowsePage() {
-  const tiles = await getPfpGallery({ limit: 240, imagesPerFid: 5 });
-  const totalImages = tiles.reduce((sum, tile) => sum + tile.imageCount, 0);
+  const [tiles, stats] = await Promise.all([
+    getPfpGallery({ limit: 240, imagesPerFid: 5 }),
+    getPfpStats()
+  ]);
 
   return (
     <main className="shell">
@@ -17,7 +19,7 @@ export default async function BrowsePage() {
           <span className="appMark">Memory wall</span>
           <h1>Browse every era</h1>
           <p>
-            Showing {tiles.length.toLocaleString()} people and {totalImages.toLocaleString()} saved PFP moments.
+            {stats.totalFids.toLocaleString()} people and {stats.totalImages.toLocaleString()} saved PFP moments.
           </p>
         </div>
         <Link className="backLink" href="/">
@@ -26,7 +28,11 @@ export default async function BrowsePage() {
       </header>
 
       {tiles.length > 0 ? (
-        <GalleryControls tiles={tiles} />
+        <GalleryControls
+          tiles={tiles}
+          initialTotalFids={stats.totalFids}
+          initialTotalImages={stats.totalImages}
+        />
       ) : (
         <section className="emptyState">
           <h2>No PFPs logged yet</h2>
