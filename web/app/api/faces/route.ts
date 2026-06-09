@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getPfpGallery } from "@/lib/pfps";
-import { clampNumber, corsHeaders } from "@/lib/api";
+import { clampNumber, corsHeaders, logApiRequest, publicApiHeaders } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
   const url = new URL(request.url);
   const limit = clampNumber(url.searchParams.get("limit"), 1, 500, 100);
   const offset = clampNumber(url.searchParams.get("offset"), 0, 100_000, 0);
@@ -22,6 +23,14 @@ export async function GET(request: Request) {
   });
   const tiles = allTiles.slice(offset, offset + limit);
   const totalImages = allTiles.reduce((sum, tile) => sum + tile.imageCount, 0);
+  logApiRequest({
+    route: "faces.list",
+    request,
+    startedAt,
+    count: tiles.length,
+    totalFids: allTiles.length,
+    totalImages
+  });
 
   return json({
     ok: true,
@@ -50,12 +59,12 @@ export function OPTIONS() {
 
 function json(body: unknown) {
   return NextResponse.json(body, {
-    headers: corsHeaders()
+    headers: publicApiHeaders()
   });
 }
 
 function parseSort(value: string | null) {
-  if (value === "count" || value === "newest" || value === "oldest" || value === "fid" || value === "likes") {
+  if (value === "count" || value === "newest" || value === "oldest" || value === "fid" || value === "likes" || value === "score") {
     return value;
   }
 

@@ -12,6 +12,12 @@ export type StoredProfile = {
   lastSeenAt: string;
   lastProfileFetchedAt?: string;
   updatedAt: string;
+  followerCount?: number;
+  neynarScore?: number;
+  powerBadge?: boolean;
+  verifications?: string[];
+  farcasterScore?: number;
+  neynarEnrichedAt?: string;
 };
 
 type StoredProfileRow = {
@@ -23,6 +29,12 @@ type StoredProfileRow = {
   last_seen_at: string;
   last_profile_fetched_at: string | null;
   updated_at: string;
+  follower_count: number | null;
+  neynar_score: number | null;
+  power_badge: number | null;
+  verifications: string | null;
+  farcaster_score: number | null;
+  neynar_enriched_at: string | null;
 };
 
 mkdirSync(path.dirname(config.sqliteDbPath), { recursive: true });
@@ -46,6 +58,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_fid_profiles_pfp_sha256
     ON fid_profiles (pfp_sha256);
 `);
+
+for (const migration of [
+  "ALTER TABLE fid_profiles ADD COLUMN follower_count INTEGER",
+  "ALTER TABLE fid_profiles ADD COLUMN neynar_score REAL",
+  "ALTER TABLE fid_profiles ADD COLUMN power_badge INTEGER",
+  "ALTER TABLE fid_profiles ADD COLUMN verifications TEXT",
+  "ALTER TABLE fid_profiles ADD COLUMN farcaster_score REAL",
+  "ALTER TABLE fid_profiles ADD COLUMN neynar_enriched_at TEXT"
+]) {
+  try {
+    db.exec(migration);
+  } catch {
+    // column already exists on subsequent startups
+  }
+}
 
 const getProfileStmt = db.prepare("SELECT * FROM fid_profiles WHERE fid = ?");
 const upsertSeenStmt = db.prepare(`
@@ -124,6 +151,38 @@ export function updateStoredPfp(input: {
   });
 }
 
+const upsertNeynarStmt = db.prepare(`
+  UPDATE fid_profiles SET
+    follower_count = @followerCount,
+    neynar_score = @neynarScore,
+    power_badge = @powerBadge,
+    verifications = @verifications,
+    farcaster_score = @farcasterScore,
+    neynar_enriched_at = @enrichedAt,
+    updated_at = @enrichedAt
+  WHERE fid = @fid
+`);
+
+export function upsertNeynarEnrichment(input: {
+  fid: number;
+  followerCount: number;
+  neynarScore: number;
+  powerBadge: boolean;
+  verifications: string[];
+  farcasterScore: number;
+}) {
+  const enrichedAt = new Date().toISOString();
+  upsertNeynarStmt.run({
+    fid: input.fid,
+    followerCount: input.followerCount,
+    neynarScore: input.neynarScore,
+    powerBadge: input.powerBadge ? 1 : 0,
+    verifications: JSON.stringify(input.verifications),
+    farcasterScore: input.farcasterScore,
+    enrichedAt
+  });
+}
+
 export function shouldFetchProfile(fid: number, refreshIntervalMs: number) {
   const profile = getStoredProfile(fid);
 
@@ -151,6 +210,12 @@ function mapProfile(row: StoredProfileRow): StoredProfile {
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
     lastProfileFetchedAt: row.last_profile_fetched_at ?? undefined,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    followerCount: row.follower_count ?? undefined,
+    neynarScore: row.neynar_score ?? undefined,
+    powerBadge: row.power_badge != null ? Boolean(row.power_badge) : undefined,
+    verifications: row.verifications ? (JSON.parse(row.verifications) as string[]) : undefined,
+    farcasterScore: row.farcaster_score ?? undefined,
+    neynarEnrichedAt: row.neynar_enriched_at ?? undefined
   };
 }

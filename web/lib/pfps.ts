@@ -36,17 +36,46 @@ export type FidProfile = {
   lastSeenAt?: string;
   lastProfileFetchedAt?: string;
   updatedAt?: string;
+  followerCount?: number;
+  neynarScore?: number;
+  powerBadge?: boolean;
+  verifications?: string[];
+  farcasterScore?: number;
+  neynarEnrichedAt?: string;
 };
 
 type GalleryOptions = {
   limit?: number;
   offset?: number;
   imagesPerFid?: number;
-  sort?: "count" | "newest" | "oldest" | "fid" | "likes";
+  sort?: "count" | "newest" | "oldest" | "fid" | "likes" | "score";
   order?: "asc" | "desc";
   query?: string;
   minImages?: number;
 };
+
+type ListedBlob = {
+  pathname: string;
+  url: string;
+  size: number;
+  uploadedAt: Date;
+};
+
+type BlobListCacheEntry = {
+  expiresAt: number;
+  promise: Promise<ListedBlob[]>;
+};
+
+const BLOB_LIST_CACHE_TTL_MS = 30_000;
+const blobListCache = new Map<string, BlobListCacheEntry>();
+
+type ScoreIndexCacheEntry = {
+  expiresAt: number;
+  promise: Promise<Record<string, number>>;
+};
+
+const SCORE_INDEX_CACHE_TTL_MS = 5 * 60_000;
+let scoreIndexCache: ScoreIndexCacheEntry | undefined;
 
 export async function getPfpGallery(options: GalleryOptions = {}) {
   return getBlobPfpGallery(options);
@@ -98,7 +127,13 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
       firstSeenAt: profile.firstSeenAt,
       lastSeenAt: profile.lastSeenAt,
       lastProfileFetchedAt: profile.lastProfileFetchedAt,
-      updatedAt: profile.updatedAt
+      updatedAt: profile.updatedAt,
+      followerCount: profile.followerCount,
+      neynarScore: profile.neynarScore,
+      powerBadge: profile.powerBadge,
+      verifications: profile.verifications,
+      farcasterScore: profile.farcasterScore,
+      neynarEnrichedAt: profile.neynarEnrichedAt
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown profile read error";
@@ -195,8 +230,11 @@ export async function getObjectStorageStats() {
 }
 
 async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}) {
-  const blobs = await listAllBlobs("pfps/");
-  const likeSummary = await getLikeSummaryMap();
+  const [blobs, likeSummary, scoreIndex] = await Promise.all([
+    listAllBlobs("pfps/"),
+    getLikeSummaryMap(),
+    options.sort === "score" ? getScoreIndex() : Promise.resolve({} as Record<string, number>)
+  ]);
   const byFid = new Map<number, Map<string, Partial<PfpImage> & { filename: string; storedAt: string; size: number }>>();
 
   for (const blob of blobs) {
@@ -258,7 +296,7 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     .filter((tile) => tile.images.length > 0)
     .filter((tile) => !options.query || String(tile.fid).includes(options.query))
     .filter((tile) => !options.minImages || tile.imageCount >= options.minImages)
-    .sort((a, b) => compareTiles(a, b, options.sort ?? "count", options.order ?? "desc"));
+    .sort((a, b) => compareTiles(a, b, options.sort ?? "count", options.order ?? "desc", scoreIndex));
 
   const offset = options.offset ?? 0;
   const limited = options.limit ? tiles.slice(offset, offset + options.limit) : tiles.slice(offset);
@@ -266,11 +304,70 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
   return limited;
 }
 
-async function listAllBlobs(prefix: string) {
+async function getScoreIndex(): Promise<Record<string, number>> {
+  const now = Date.now();
+
+  if (scoreIndexCache && scoreIndexCache.expiresAt > now) {
+    return scoreIndexCache.promise;
+  }
+
+  const promise = fetchScoreIndexUncached();
+  scoreIndexCache = { expiresAt: now + SCORE_INDEX_CACHE_TTL_MS, promise };
+
+  try {
+    return await promise;
+  } catch {
+    scoreIndexCache = undefined;
+    return {};
+  }
+}
+
+async function fetchScoreIndexUncached(): Promise<Record<string, number>> {
+  const s3 = s3Config();
+
+  if (!s3) return {};
+
+  try {
+    const object = await s3.client.send(
+      new GetObjectCommand({
+        Bucket: s3.bucket,
+        Key: "state/score-index.json"
+      })
+    );
+    const text = await object.Body?.transformToString();
+    return text ? (JSON.parse(text) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function listAllBlobs(prefix: string): Promise<ListedBlob[]> {
+  const now = Date.now();
+  const cached = blobListCache.get(prefix);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
+  }
+
+  const promise = listAllBlobsUncached(prefix);
+  blobListCache.set(prefix, {
+    expiresAt: now + BLOB_LIST_CACHE_TTL_MS,
+    promise
+  });
+
+  try {
+    return await promise;
+  } catch (error) {
+    blobListCache.delete(prefix);
+    throw error;
+  }
+}
+
+async function listAllBlobsUncached(prefix: string): Promise<ListedBlob[]> {
   const s3 = s3Config();
 
   if (s3) {
-    const blobs = [];
+    const blobs: ListedBlob[] = [];
     let continuationToken: string | undefined;
 
     try {
@@ -309,7 +406,7 @@ async function listAllBlobs(prefix: string) {
     return blobs;
   }
 
-  const blobs = [];
+  const blobs: ListedBlob[] = [];
   let cursor: string | undefined;
 
   do {
@@ -448,7 +545,8 @@ function compareTiles(
   a: FidTile,
   b: FidTile,
   sort: NonNullable<GalleryOptions["sort"]>,
-  order: NonNullable<GalleryOptions["order"]>
+  order: NonNullable<GalleryOptions["order"]>,
+  scores: Record<string, number> = {}
 ) {
   const direction = order === "asc" ? 1 : -1;
   let result = 0;
@@ -461,6 +559,8 @@ function compareTiles(
     result = oldestTime(a) - oldestTime(b);
   } else if (sort === "likes") {
     result = totalLikes(a) - totalLikes(b) || newestTime(a) - newestTime(b);
+  } else if (sort === "score") {
+    result = (scores[String(a.fid)] ?? 0) - (scores[String(b.fid)] ?? 0);
   } else {
     result = a.fid - b.fid;
   }

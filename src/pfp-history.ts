@@ -4,6 +4,8 @@ import path from "node:path";
 import { config } from "./config.js";
 import { uploadPfpToBlob, type BlobPfpUploadSet } from "./blob-storage.js";
 import {
+  computeFarcasterScore,
+  enrichCloudProfilesWithNeynar,
   getCloudProfile,
   markCloudFidSeen,
   updateCloudPfp,
@@ -119,6 +121,8 @@ export async function storePfpIfChanged(
     updatedAt: storedAt
   });
 
+  fireLocalEnrichment(interaction.fid);
+
   return change;
 }
 
@@ -181,6 +185,8 @@ async function storeCloudPfpIfChanged(
     seenAt: interaction.receivedAt,
     updatedAt: storedAt
   });
+
+  fireCloudEnrichment(interaction.fid);
 
   return change;
 }
@@ -282,6 +288,41 @@ async function readLatest(fidDir: string): Promise<LatestPfp | undefined> {
 
     throw error;
   }
+}
+
+function fireCloudEnrichment(fid: number) {
+  if (!config.neynarApiKey) return;
+  enrichCloudProfilesWithNeynar([fid]).catch((err) => {
+    console.warn(`Neynar enrichment failed for fid ${fid}:`, err instanceof Error ? err.message : err);
+  });
+}
+
+function fireLocalEnrichment(fid: number) {
+  if (!config.neynarApiKey) return;
+  import("./neynar.js")
+    .then(({ fetchNeynarUsersBulk }) => fetchNeynarUsersBulk([fid]))
+    .then((users) => {
+      const user = users[0];
+      if (!user) return;
+      return import("./db.js").then(({ upsertNeynarEnrichment }) => {
+        upsertNeynarEnrichment({
+          fid: user.fid,
+          followerCount: user.follower_count,
+          neynarScore: user.score,
+          powerBadge: user.power_badge,
+          verifications: user.verifications,
+          farcasterScore: computeFarcasterScore({
+            followerCount: user.follower_count,
+            neynarScore: user.score,
+            powerBadge: user.power_badge,
+            verifications: user.verifications
+          })
+        });
+      });
+    })
+    .catch((err) => {
+      console.warn(`Local Neynar enrichment failed for fid ${fid}:`, err instanceof Error ? err.message : err);
+    });
 }
 
 function extensionFor(contentType: string, url: string) {
