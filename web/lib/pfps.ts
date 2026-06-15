@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { list } from "@vercel/blob";
 import { getLikeSummaryMap } from "./social";
+import { BADGE_DEFS, getBadgeSummary, awardFidBadges } from "./badges";
 
 export type PfpImage = {
   id: string;
@@ -18,11 +19,17 @@ export type PfpImage = {
   likeCount: number;
 };
 
+export type TileBadge = {
+  id: string;
+  label: string;
+};
+
 export type FidTile = {
   fid: number;
   images: PfpImage[];
   imageCount: number;
   profile?: FidProfile;
+  badges?: TileBadge[];
 };
 
 export type FidProfile = {
@@ -89,9 +96,30 @@ export async function getFidTile(fid: number): Promise<FidTile | undefined> {
     return undefined;
   }
 
+  const profile = await getFidProfile(fid);
+
+  const totalLikes = tile.images.reduce((sum, img) => sum + img.likeCount, 0);
+  const latestImageAt = tile.images[0]?.storedAt;
+
+  const awardedIds = await awardFidBadges({
+    fid,
+    imageCount: tile.imageCount,
+    totalLikes,
+    latestImageAt,
+    firstSeenAt: profile?.firstSeenAt,
+    powerBadge: profile?.powerBadge,
+    verifications: profile?.verifications
+  });
+
+  const badges: TileBadge[] = awardedIds.map(id => ({
+    id,
+    label: BADGE_DEFS[id]?.label ?? id
+  }));
+
   return {
     ...tile,
-    profile: await getFidProfile(fid)
+    profile,
+    badges: badges.length > 0 ? badges : undefined
   };
 }
 
@@ -230,9 +258,10 @@ export async function getObjectStorageStats() {
 }
 
 async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}) {
-  const [blobs, likeSummary, scoreIndex] = await Promise.all([
+  const [blobs, likeSummary, badgeSummary, scoreIndex] = await Promise.all([
     listAllBlobs("pfps/"),
     getLikeSummaryMap(),
+    options.fid ? Promise.resolve({} as Record<string, Array<{ id: string; label: string }>>) : getBadgeSummary(),
     options.sort === "score" ? getScoreIndex() : Promise.resolve({} as Record<string, number>)
   ]);
   const byFid = new Map<number, Map<string, Partial<PfpImage> & { filename: string; storedAt: string; size: number }>>();
@@ -287,10 +316,12 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
         }));
 
       images.sort((a, b) => Date.parse(b.storedAt) - Date.parse(a.storedAt));
+      const badges = badgeSummary[String(fid)] ?? [];
       return {
         fid,
         imageCount: images.length,
-        images: options.imagesPerFid ? images.slice(0, options.imagesPerFid) : images
+        images: options.imagesPerFid ? images.slice(0, options.imagesPerFid) : images,
+        badges: badges.length > 0 ? badges : undefined
       };
     })
     .filter((tile) => tile.images.length > 0)

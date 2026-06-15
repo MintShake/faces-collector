@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Nav } from "./nav";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
 const splashBackgroundColor = "#07121f";
@@ -7,10 +8,10 @@ const miniAppEmbed = {
   version: "1",
   imageUrl: `${appUrl}/miniapp/embed.png`,
   button: {
-    title: "Open hub",
+    title: "Browse faces",
     action: {
       type: "launch_miniapp",
-      name: "Shakezz Hub",
+      name: "Faces",
       url: appUrl,
       splashImageUrl: `${appUrl}/miniapp/splash.png`,
       splashBackgroundColor
@@ -20,11 +21,11 @@ const miniAppEmbed = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
-  title: "Shakezz Hub",
-  description: "Private Faces operations dashboard.",
+  title: "Faces",
+  description: "Profile picture history across the social web.",
   openGraph: {
-    title: "Shakezz Hub",
-    description: "Private Faces operations dashboard.",
+    title: "Faces",
+    description: "Profile picture history across the social web.",
     images: ["/miniapp/embed.png"]
   },
   icons: {
@@ -44,7 +45,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Nav />
+        {children}
+      </body>
     </html>
   );
 }

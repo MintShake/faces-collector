@@ -1,46 +1,115 @@
-import { MiniAppHome } from "./miniapp-client";
+import Link from "next/link";
+import type { FidTile } from "@/lib/pfps";
+import { getPfpGallery, getPfpStats } from "@/lib/pfps";
+import { FidCard } from "./fid-card";
 import { LiveRefresh } from "./live-refresh";
-import { getObjectStorageStats, getPfpGallery, getPfpStats } from "@/lib/pfps";
+import { SafeImage } from "./safe-image";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [tiles, stats, storage, collector] = await Promise.all([
-    getPfpGallery({ limit: 120, imagesPerFid: 5, sort: "newest" }),
-    getPfpStats(),
-    getObjectStorageStats(),
-    getCollectorHealth()
+  const [tilesRaw, stats] = await Promise.all([
+    getPfpGallery({ limit: 240, imagesPerFid: 5, sort: "newest" }),
+    getPfpStats()
   ]);
+  const tiles = tilesRaw as FidTile[];
+
+  const recentChanges = tiles
+    .flatMap((t) => t.images.map((img) => ({ fid: t.fid, profile: t.profile, image: img })))
+    .sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt))
+    .slice(0, 14);
+
+  const heroImages = recentChanges.slice(0, 5).map((c) => c.image);
+  const topTiles = [...tiles].sort((a, b) => b.imageCount - a.imageCount).slice(0, 8);
 
   return (
     <main className="shell">
       <LiveRefresh renderedAt={new Date().toISOString()} />
-      <MiniAppHome tiles={tiles} stats={stats} storage={storage} collector={collector} />
+
+      <section className="miniHero">
+        <div className="heroCopy">
+          <span className="appMark">Faces</span>
+          <h1>Every version of you, saved.</h1>
+          <p>
+            Profile picture history across the social web.{" "}
+            {stats.totalFids.toLocaleString()} people and{" "}
+            {stats.totalImages.toLocaleString()} moments — and counting.
+          </p>
+          <div className="heroActions">
+            <Link className="primaryButton" href="/browse">
+              Browse all faces
+            </Link>
+          </div>
+          <div className="memoryRibbon">
+            <span className="platformActive">Farcaster</span>
+            <span className="platformSoon">Bluesky · soon</span>
+            <span className="platformSoon">Lens · soon</span>
+            <span className="platformSoon">X · soon</span>
+          </div>
+        </div>
+        <div className="heroStack" aria-hidden="true">
+          {heroImages.map((img, i) => (
+            <SafeImage
+              key={img.id}
+              src={img.thumbUrl ?? img.url}
+              alt=""
+              style={{ "--i": i } as React.CSSProperties}
+            />
+          ))}
+        </div>
+      </section>
+
+      <div className="statsStrip">
+        <div>
+          <span>{stats.totalFids.toLocaleString()}</span>
+          <p>profiles tracked</p>
+        </div>
+        <div>
+          <span>{stats.totalImages.toLocaleString()}</span>
+          <p>profile pics saved</p>
+        </div>
+        <div>
+          <span>{stats.totalLikes.toLocaleString()}</span>
+          <p>community likes</p>
+        </div>
+      </div>
+
+      <section className="homeSection">
+        <div className="sectionHeading">
+          <h2>Latest changes</h2>
+          <Link className="textButton" href="/browse">See all</Link>
+        </div>
+        <div className="changeRail">
+          {recentChanges.map(({ fid, profile, image }) => (
+            <Link key={image.id} className="changeCard" href={`/fid/${fid}`}>
+              <SafeImage src={image.thumbUrl ?? image.url} alt="" loading="lazy" decoding="async" />
+              <strong>{profile?.displayName ?? profile?.username ?? `FID ${fid}`}</strong>
+              <span>{formatDate(image.storedAt)}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="homeSection">
+        <div className="sectionHeading">
+          <h2>Most eras</h2>
+          <Link className="textButton" href="/browse">Browse all</Link>
+        </div>
+        <div className="tileGrid">
+          {topTiles.map((tile) => (
+            <FidCard key={tile.fid} tile={tile} />
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
 
-async function getCollectorHealth() {
-  const collectorUrl = process.env.COLLECTOR_URL ?? "https://faces-collector.onrender.com";
-
-  try {
-    const response = await fetch(new URL("/health", collectorUrl), {
-      cache: "no-store",
-      signal: AbortSignal.timeout(8_000)
-    });
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: `${response.status} ${response.statusText}`
-      };
-    }
-
-    return await response.json() as Record<string, unknown>;
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Unknown collector health error"
-    };
-  }
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
 }

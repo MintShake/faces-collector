@@ -16,10 +16,10 @@ export default async function BrowsePage() {
       <LiveRefresh renderedAt={new Date().toISOString()} />
       <header className="topbar">
         <div>
-          <span className="appMark">Memory wall</span>
-          <h1>Browse every era</h1>
+          <span className="appMark">Faces</span>
+          <h1>Browse all profiles</h1>
           <p>
-            {stats.totalFids.toLocaleString()} people and {stats.totalImages.toLocaleString()} saved PFP moments.
+            {stats.totalFids.toLocaleString()} people and {stats.totalImages.toLocaleString()} profile pics saved across the social web.
           </p>
         </div>
         <Link className="backLink" href="/">
@@ -35,8 +35,8 @@ export default async function BrowsePage() {
         />
       ) : (
         <section className="emptyState">
-          <h2>No PFPs logged yet</h2>
-          <p>Once the collector writes images to storage, FID tiles will appear here.</p>
+          <h2>Nothing here yet</h2>
+          <p>Profiles appear as they're discovered. Check back soon.</p>
         </section>
       )}
     </main>

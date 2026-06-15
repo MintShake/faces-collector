@@ -16,7 +16,7 @@ export function CompareButton({ fid }: { fid: number }) {
       const context = await sdk.context;
 
       if (!context.user?.fid) {
-        setLabel("No FID found");
+        setLabel("Sign in to compare");
         return;
       }
 
@@ -26,7 +26,7 @@ export function CompareButton({ fid }: { fid: number }) {
       }
 
       await sdk.actions.composeCast({
-        text: `Compare my PFP eras with FID ${fid} on Faces.`,
+        text: `Compare my profile pic history with this person on Faces.`,
         embeds: [
           new URL(`/fid/${fid}`, window.location.origin).toString(),
           new URL(`/fid/${context.user.fid}`, window.location.origin).toString()

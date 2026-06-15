@@ -26,6 +26,20 @@ type LikeResponse = {
   likes: LikeUser[];
 };
 
+function getBrowserUser(): MiniAppUser | null {
+  try {
+    let id = localStorage.getItem("faces.browserId");
+    if (!id) {
+      // Large random int — above real Farcaster FID range (~1M)
+      id = String(Math.floor(100_000_000 + Math.random() * 899_999_999));
+      localStorage.setItem("faces.browserId", id);
+    }
+    return { fid: Number(id) };
+  } catch {
+    return null;
+  }
+}
+
 export function LikePanel({
   ownerFid,
   image,
@@ -47,58 +61,45 @@ export function LikePanel({
   useEffect(() => {
     let cancelled = false;
 
-    async function loadContext() {
-      if (compact) {
-        return;
-      }
+    async function initUser() {
+      if (compact) return;
 
       try {
-        if (!(await sdk.isInMiniApp())) {
+        if (await sdk.isInMiniApp()) {
+          const context = await sdk.context;
+          if (cancelled) return;
+          setUser(context.user);
+          setNotificationDetails(context.client.notificationDetails);
+          await registerUser(context.user, context.client.notificationDetails);
           return;
         }
-
-        const context = await sdk.context;
-
-        if (cancelled) {
-          return;
-        }
-
-        setUser(context.user);
-        setNotificationDetails(context.client.notificationDetails);
-        await registerUser(context.user, context.client.notificationDetails);
       } catch {
-        // Browser preview still works without Farcaster context.
+        // Not in Farcaster — fall through to browser identity.
+      }
+
+      // Browser fallback: stable anonymous identity from localStorage.
+      const browserUser = getBrowserUser();
+      if (browserUser && !cancelled) {
+        setUser(browserUser);
       }
     }
 
-    void loadContext();
-
-    return () => {
-      cancelled = true;
-    };
+    void initUser();
+    return () => { cancelled = true; };
   }, [compact]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadLikes() {
-      if (compact) {
-        return;
-      }
+      if (compact) return;
 
+      const viewerFid = user?.fid ?? getBrowserUser()?.fid;
       const params = new URLSearchParams({ imageId: image.id });
+      if (viewerFid) params.set("viewerFid", String(viewerFid));
 
-      if (user?.fid) {
-        params.set("viewerFid", String(user.fid));
-      }
-
-      const response = await fetch(`/api/likes?${params.toString()}`, {
-        cache: "no-store"
-      });
-
-      if (!response.ok || cancelled) {
-        return;
-      }
+      const response = await fetch(`/api/likes?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok || cancelled) return;
 
       const data = await response.json() as LikeResponse;
       setCount(data.count);
@@ -107,10 +108,7 @@ export function LikePanel({
     }
 
     void loadLikes();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [compact, image.id, user?.fid]);
 
   async function toggleLike() {
@@ -128,22 +126,24 @@ export function LikePanel({
           await registerUser(context.user, context.client.notificationDetails);
         }
       } catch {
-        return;
+        // Not in Farcaster.
       }
     }
 
+    // Browser fallback identity.
     if (!activeUser) {
-      return;
+      activeUser = getBrowserUser() ?? undefined;
+      if (activeUser) setUser(activeUser);
     }
+
+    if (!activeUser) return;
 
     setBusy(true);
 
     try {
       const response = await fetch("/api/likes", {
         method: "POST",
-        headers: {
-          "content-type": "application/json"
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           imageId: image.id,
           ownerFid,
@@ -155,9 +155,7 @@ export function LikePanel({
       });
 
       if (!response.ok) {
-        if (response.status === 503) {
-          setStorageUnavailable(true);
-        }
+        if (response.status === 503) setStorageUnavailable(true);
         return;
       }
 
@@ -172,14 +170,21 @@ export function LikePanel({
 
   return (
     <div className={compact ? "likePanel compact" : "likePanel"}>
-      <button type="button" className={viewerLiked ? "likeButton active" : "likeButton"} onClick={toggleLike} disabled={busy}>
-        {storageUnavailable ? "DB off" : viewerLiked ? "Liked" : "Like"}
+      <button
+        type="button"
+        className={viewerLiked ? "likeButton active" : "likeButton"}
+        onClick={toggleLike}
+        disabled={busy}
+      >
+        {storageUnavailable ? "Unavailable" : viewerLiked ? "❤️ Liked" : "♡ Like"}
       </button>
-      <span className="likeCount">{count.toLocaleString()}</span>
+      <span className="likeCount">{count > 0 ? count.toLocaleString() : ""}</span>
       {visibleLikes.length > 0 && (
         <div className="likedBy" aria-label="Liked by">
           {visibleLikes.map((like) => (
-            <span key={like.fid}>{like.username ? `@${like.username}` : like.displayName ?? `FID ${like.fid}`}</span>
+            <span key={like.fid}>
+              {like.username ? `@${like.username}` : like.displayName ?? "Anonymous"}
+            </span>
           ))}
         </div>
       )}
@@ -190,12 +195,7 @@ export function LikePanel({
 async function registerUser(user: MiniAppUser, notificationDetails?: NotificationDetails) {
   await fetch("/api/users", {
     method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      ...user,
-      notificationDetails
-    })
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...user, notificationDetails })
   });
 }

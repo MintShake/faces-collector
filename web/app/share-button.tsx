@@ -22,8 +22,8 @@ export function ShareButton({
     const path = fid ? `/fid/${fid}` : "/";
     const url = new URL(path, window.location.origin).toString();
     const shareText = text ?? (fid
-      ? `FID ${fid} has ${count?.toLocaleString() ?? "a"} logged PFP${count === 1 ? "" : "s"} on Faces.`
-      : "Faces turns Farcaster PFP changes into a timeline.");
+      ? `${count?.toLocaleString() ?? "A"} profile pic${count === 1 ? "" : "s"} saved on Faces — every version of this person, in one place.`
+      : "Faces saves profile pic history across the social web.");
 
     try {
       if (await sdk.isInMiniApp()) {

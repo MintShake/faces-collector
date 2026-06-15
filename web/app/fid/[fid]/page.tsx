@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFidTile } from "@/lib/pfps";
+import { BADGE_DEFS } from "@/lib/badges";
 import { CompareButton } from "../../compare-button";
 import { HideButton } from "../../hide-button";
 import { LikePanel } from "../../like-panel";
@@ -60,19 +61,19 @@ export default async function FidPage({
           ))}
         </div>
         <div className="profileCopy">
-          <span className="eyebrow">FID {tile.fid}</span>
+          <span className="eyebrow">Farcaster · FID {tile.fid}</span>
           <h2>{tile.profile?.displayName ?? tile.profile?.username ?? `FID ${tile.fid}`}</h2>
           {tile.profile?.username && <p className="profileHandle">@{tile.profile.username}</p>}
           {tile.profile?.bio && <p className="profileBio">{tile.profile.bio}</p>}
           <div className="badgeRow">
-            {profileBadges(tile).map((badge) => (
-              <span key={badge}>{badge}</span>
+            {(tile.badges ?? []).map((badge) => (
+              <span key={badge.id} title={BADGE_DEFS[badge.id]?.desc}>{badge.label}</span>
             ))}
           </div>
           <div className="profileFacts">
-            <span>{tile.images.length.toLocaleString()} PFPs saved</span>
+            <span>{tile.images.length.toLocaleString()} pics saved</span>
             {tile.profile?.firstSeenAt && <span>First seen {formatShortDate(tile.profile.firstSeenAt)}</span>}
-            {tile.profile?.lastSeenAt && <span>Active {formatShortDate(tile.profile.lastSeenAt)}</span>}
+            {tile.profile?.lastSeenAt && <span>Last seen {formatShortDate(tile.profile.lastSeenAt)}</span>}
             {tile.profile?.profileUrl && (
               <a href={tile.profile.profileUrl} target="_blank" rel="noreferrer">
                 Website
@@ -89,19 +90,19 @@ export default async function FidPage({
           <p>From {formatShortDate(tile.images.at(-1)?.storedAt ?? tile.images[0].storedAt)} to {formatShortDate(tile.images[0].storedAt)}.</p>
         </div>
         <div className="wrappedStats">
-          <span>Newest: {formatDate(tile.images[0].storedAt)}</span>
+          <span>Latest pic: {formatDate(tile.images[0].storedAt)}</span>
           <span>First saved: {formatDate(tile.images.at(-1)?.storedAt ?? tile.images[0].storedAt)}</span>
           <span>Most liked: {mostLiked(tile).likeCount.toLocaleString()}</span>
         </div>
       </section>
 
-      <section className="historyGrid" aria-label={`PFP history for FID ${tile.fid}`}>
+      <section className="historyGrid" aria-label={`Pic history for ${displayName(tile)}`}>
         {tile.images.map((image) => (
           <article key={image.filename} className="historyItem">
             <a href={image.url} target="_blank" rel="noreferrer">
               <SafeImage
                 src={image.url}
-                alt={`FID ${tile.fid} PFP logged ${formatDate(image.storedAt)}`}
+                alt={`Profile pic saved ${formatDate(image.storedAt)}`}
                 loading="lazy"
                 decoding="async"
               />
@@ -130,31 +131,9 @@ function displayName(tile: NonNullable<Awaited<ReturnType<typeof getFidTile>>>) 
 
 function profileLine(tile: NonNullable<Awaited<ReturnType<typeof getFidTile>>>) {
   const handle = tile.profile?.username ? `@${tile.profile.username}` : `FID ${tile.fid}`;
-  return `${handle} has ${tile.images.length.toLocaleString()} logged PFP${tile.images.length === 1 ? "" : "s"}`;
+  return `${handle} · ${tile.images.length.toLocaleString()} profile pic${tile.images.length === 1 ? "" : "s"} saved`;
 }
 
-function profileBadges(tile: NonNullable<Awaited<ReturnType<typeof getFidTile>>>) {
-  const likes = tile.images.reduce((sum, image) => sum + image.likeCount, 0);
-  const badges = [];
-
-  if (tile.images.length >= 10) {
-    badges.push("most eras");
-  }
-
-  if (Date.now() - Date.parse(tile.images[0].storedAt) < 24 * 60 * 60 * 1000) {
-    badges.push("fresh change");
-  }
-
-  if (likes > 0) {
-    badges.push("community favorite");
-  }
-
-  if (tile.profile?.firstSeenAt && Date.now() - Date.parse(tile.profile.firstSeenAt) > 7 * 24 * 60 * 60 * 1000) {
-    badges.push("early face");
-  }
-
-  return badges.length > 0 ? badges : ["first era"];
-}
 
 function mostLiked(tile: NonNullable<Awaited<ReturnType<typeof getFidTile>>>) {
   return [...tile.images].sort((a, b) => b.likeCount - a.likeCount)[0];

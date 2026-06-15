@@ -83,11 +83,11 @@ export function GalleryControls({
     <>
       <section className="controls" aria-label="Gallery controls">
         <label>
-          <span>FID</span>
+          <span>Search</span>
           <input
             type="search"
             inputMode="numeric"
-            placeholder="Search"
+            placeholder="Search by ID"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -96,11 +96,11 @@ export function GalleryControls({
         <label>
           <span>Sort</span>
           <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}>
-            <option value="likes">Likes</option>
-            <option value="count">PFP count</option>
-            <option value="newest">Newest update</option>
-            <option value="oldest">Oldest update</option>
-            <option value="fid">FID</option>
+            <option value="likes">Most liked</option>
+            <option value="count">Pic count</option>
+            <option value="newest">Recently changed</option>
+            <option value="oldest">Earliest change</option>
+            <option value="fid">Profile ID</option>
           </select>
         </label>
 
@@ -116,7 +116,7 @@ export function GalleryControls({
         </label>
 
         <label>
-          <span>Min PFPs</span>
+          <span>Min pics</span>
           <input
             type="number"
             min={1}
@@ -128,7 +128,7 @@ export function GalleryControls({
       </section>
 
       <p className="resultCount">
-        Showing {visibleTiles.length.toLocaleString()} of {totalFids.toLocaleString()} FIDs and {visibleImageCount.toLocaleString()} of {totalImages.toLocaleString()} logged PFPs
+        Showing {visibleTiles.length.toLocaleString()} of {totalFids.toLocaleString()} profiles — {visibleImageCount.toLocaleString()} of {totalImages.toLocaleString()} pics
         {hiddenFids.size > 0 && (
           <button className="inlineReset" type="button" onClick={() => {
             window.localStorage.removeItem("faces.hiddenFids");
@@ -140,7 +140,7 @@ export function GalleryControls({
       </p>
       {loadError && <p className="loadError">{loadError}</p>}
 
-      <section className="tileGrid" aria-label="Farcaster FID PFP history">
+      <section className="tileGrid" aria-label="Profile history gallery">
         {visibleTiles.map((tile) => (
           <FidCard key={tile.fid} tile={tile} />
         ))}
@@ -195,7 +195,7 @@ export function GalleryControls({
         return;
       }
 
-      setLoadError(error instanceof Error ? error.message : "Could not load more FIDs");
+      setLoadError(error instanceof Error ? error.message : "Could not load more profiles");
     } finally {
       setIsLoading(false);
     }
