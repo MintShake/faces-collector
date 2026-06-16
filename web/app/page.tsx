@@ -98,7 +98,7 @@ export default async function Home() {
         </div>
         <div className="tileGrid">
           {topTiles.map((tile) => (
-            <FidCard key={tile.fid} tile={tile} />
+            <FidCard key={tile.fid} tile={tile} compact />
           ))}
         </div>
       </section>

@@ -553,6 +553,16 @@ h1 {
 .tileGrid .tile:nth-child(3n)  { animation-delay: 80ms; }
 .tileGrid .tile:nth-child(5n)  { animation-delay: 120ms; }
 
+.tile.compact {
+  padding: 8px;
+  gap: 6px;
+  border-radius: 14px;
+}
+.tile.compact .fid { font-size: 12px; }
+.tile.compact .count { font-size: 11px; }
+.tile.compact .tileBadge { font-size: 10px; padding: 2px 6px; }
+.tile.compact .tileLikes { font-size: 11px; }
+
 .tileLink {
   position: relative;
   display: grid;

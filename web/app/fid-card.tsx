@@ -5,14 +5,14 @@ import { LikePanel } from "./like-panel";
 import { SafeImage } from "./safe-image";
 import { ShareButton } from "./share-button";
 
-export function FidCard({ tile }: { tile: FidTile }) {
-  const preview = tile.images.slice(0, 5);
+export function FidCard({ tile, compact = false }: { tile: FidTile; compact?: boolean }) {
+  const preview = tile.images.slice(0, compact ? 3 : 5);
   const totalLikes = tile.images.reduce((sum, image) => sum + image.likeCount, 0);
   const badgeIds = tile.badges?.map(b => b.id) ?? [];
   const featuredBadge = tile.badges?.find(b => b.id === topBadge(badgeIds));
 
   return (
-    <article className="tile">
+    <article className={compact ? "tile compact" : "tile"}>
       <Link className="tileLink" href={`/fid/${tile.fid}`}>
         <div className="thumbStack" aria-hidden="true">
           {preview.map((image, index) => (
