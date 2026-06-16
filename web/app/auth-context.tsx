@@ -1,8 +1,9 @@
 "use client";
 
+import "@farcaster/auth-kit/styles.css";
 import { AuthKitProvider } from "@farcaster/auth-kit";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 export type FarcasterIdentity = {
   kind: "farcaster";
@@ -36,20 +37,32 @@ const AuthContext = createContext<AuthState | null>(null);
 
 const WALLET_STORAGE_KEY = "faces.wallet";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
-const appHost = (() => {
+const fallbackAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
+const fallbackHost = (() => {
   try {
-    return new URL(appUrl).host;
+    return new URL(fallbackAppUrl).host;
   } catch {
     return "web-legoblocksapps.vercel.app";
   }
 })();
 
-const authKitConfig = {
-  rpcUrl: "https://mainnet.optimism.io",
-  domain: appHost,
-  siweUri: `${appUrl}/`
-};
+function useAuthKitConfig() {
+  return useMemo(() => {
+    if (typeof window === "undefined") {
+      return {
+        rpcUrl: "https://mainnet.optimism.io",
+        domain: fallbackHost,
+        siweUri: `${fallbackAppUrl}/`
+      };
+    }
+
+    return {
+      rpcUrl: "https://mainnet.optimism.io",
+      domain: window.location.host,
+      siweUri: window.location.origin + "/"
+    };
+  }, []);
+}
 
 function AuthState({ children }: { children: React.ReactNode }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -156,8 +169,10 @@ function AuthState({ children }: { children: React.ReactNode }) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const config = useAuthKitConfig();
+
   return (
-    <AuthKitProvider config={authKitConfig}>
+    <AuthKitProvider config={config}>
       <AuthState>{children}</AuthState>
     </AuthKitProvider>
   );
