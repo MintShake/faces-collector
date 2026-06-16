@@ -5,7 +5,7 @@ import { FidCard } from "./fid-card";
 import { LiveRefresh } from "./live-refresh";
 import { SafeImage } from "./safe-image";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function Home() {
   const [tilesRaw, stats] = await Promise.all([

@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 
 export function LiveRefresh({
   renderedAt,
-  intervalMs = 15_000
+  intervalMs = 60_000
 }: {
   renderedAt: string;
   intervalMs?: number;

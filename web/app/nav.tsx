@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NavConnect } from "./nav-connect";
 
 export function Nav() {
   return (
@@ -8,6 +9,7 @@ export function Nav() {
         <div className="navLinks">
           <Link className="navLink" href="/about">Build</Link>
           <Link className="navBrowse" href="/browse">Browse</Link>
+          <NavConnect />
         </div>
       </div>
     </nav>

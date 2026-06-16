@@ -73,7 +73,7 @@ type BlobListCacheEntry = {
   promise: Promise<ListedBlob[]>;
 };
 
-const BLOB_LIST_CACHE_TTL_MS = 30_000;
+const BLOB_LIST_CACHE_TTL_MS = 120_000;
 const blobListCache = new Map<string, BlobListCacheEntry>();
 
 type ScoreIndexCacheEntry = {

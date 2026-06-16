@@ -1,22 +1,16 @@
 "use client";
 
-import { sdk } from "@farcaster/miniapp-sdk";
 import { useEffect, useMemo, useState } from "react";
 import type { PfpImage } from "@/lib/pfps";
+import { useFacesAuth, viewerIdFor, viewerPayloadFor } from "./auth-context";
 
-type MiniAppUser = {
-  fid: number;
+type LikeUser = {
+  id: string;
+  fid?: number;
+  address?: string;
   username?: string;
   displayName?: string;
   pfpUrl?: string;
-};
-
-type NotificationDetails = {
-  url: string;
-  token: string;
-};
-
-type LikeUser = MiniAppUser & {
   likedAt: string;
 };
 
@@ -25,20 +19,6 @@ type LikeResponse = {
   viewerLiked: boolean;
   likes: LikeUser[];
 };
-
-function getBrowserUser(): MiniAppUser | null {
-  try {
-    let id = localStorage.getItem("faces.browserId");
-    if (!id) {
-      // Large random int — above real Farcaster FID range (~1M)
-      id = String(Math.floor(100_000_000 + Math.random() * 899_999_999));
-      localStorage.setItem("faces.browserId", id);
-    }
-    return { fid: Number(id) };
-  } catch {
-    return null;
-  }
-}
 
 export function LikePanel({
   ownerFid,
@@ -49,54 +29,23 @@ export function LikePanel({
   image: PfpImage;
   compact?: boolean;
 }) {
-  const [user, setUser] = useState<MiniAppUser>();
-  const [notificationDetails, setNotificationDetails] = useState<NotificationDetails>();
+  const { identity, ready, openConnect } = useFacesAuth();
   const [count, setCount] = useState(image.likeCount);
   const [viewerLiked, setViewerLiked] = useState(false);
   const [likes, setLikes] = useState<LikeUser[]>([]);
   const [busy, setBusy] = useState(false);
   const [storageUnavailable, setStorageUnavailable] = useState(false);
   const visibleLikes = useMemo(() => likes.slice(0, compact ? 3 : 8), [compact, likes]);
+  const viewerId = viewerIdFor(identity);
 
   useEffect(() => {
-    let cancelled = false;
+    if (compact) return;
 
-    async function initUser() {
-      if (compact) return;
-
-      try {
-        if (await sdk.isInMiniApp()) {
-          const context = await sdk.context;
-          if (cancelled) return;
-          setUser(context.user);
-          setNotificationDetails(context.client.notificationDetails);
-          await registerUser(context.user, context.client.notificationDetails);
-          return;
-        }
-      } catch {
-        // Not in Farcaster — fall through to browser identity.
-      }
-
-      // Browser fallback: stable anonymous identity from localStorage.
-      const browserUser = getBrowserUser();
-      if (browserUser && !cancelled) {
-        setUser(browserUser);
-      }
-    }
-
-    void initUser();
-    return () => { cancelled = true; };
-  }, [compact]);
-
-  useEffect(() => {
     let cancelled = false;
 
     async function loadLikes() {
-      if (compact) return;
-
-      const viewerFid = user?.fid ?? getBrowserUser()?.fid;
       const params = new URLSearchParams({ imageId: image.id });
-      if (viewerFid) params.set("viewerFid", String(viewerFid));
+      if (viewerId) params.set("viewerId", viewerId);
 
       const response = await fetch(`/api/likes?${params.toString()}`, { cache: "no-store" });
       if (!response.ok || cancelled) return;
@@ -109,34 +58,15 @@ export function LikePanel({
 
     void loadLikes();
     return () => { cancelled = true; };
-  }, [compact, image.id, user?.fid]);
+  }, [compact, image.id, viewerId]);
 
   async function toggleLike() {
-    let activeUser = user;
-    let activeNotificationDetails = notificationDetails;
+    if (!ready) return;
 
-    if (!activeUser) {
-      try {
-        if (await sdk.isInMiniApp()) {
-          const context = await sdk.context;
-          activeUser = context.user;
-          activeNotificationDetails = context.client.notificationDetails;
-          setUser(context.user);
-          setNotificationDetails(context.client.notificationDetails);
-          await registerUser(context.user, context.client.notificationDetails);
-        }
-      } catch {
-        // Not in Farcaster.
-      }
+    if (!identity) {
+      openConnect();
+      return;
     }
-
-    // Browser fallback identity.
-    if (!activeUser) {
-      activeUser = getBrowserUser() ?? undefined;
-      if (activeUser) setUser(activeUser);
-    }
-
-    if (!activeUser) return;
 
     setBusy(true);
 
@@ -149,8 +79,7 @@ export function LikePanel({
           ownerFid,
           imageUrl: image.url,
           action: viewerLiked ? "unlike" : "like",
-          user: activeUser,
-          notificationDetails: activeNotificationDetails
+          user: viewerPayloadFor(identity)
         })
       });
 
@@ -174,16 +103,24 @@ export function LikePanel({
         type="button"
         className={viewerLiked ? "likeButton active" : "likeButton"}
         onClick={toggleLike}
-        disabled={busy}
+        disabled={busy || !ready}
       >
-        {storageUnavailable ? "Unavailable" : viewerLiked ? "❤️ Liked" : "♡ Like"}
+        {storageUnavailable
+          ? "Unavailable"
+          : !identity
+            ? "Connect to like"
+            : viewerLiked
+              ? "❤️ Liked"
+              : "♡ Like"}
       </button>
       <span className="likeCount">{count > 0 ? count.toLocaleString() : ""}</span>
       {visibleLikes.length > 0 && (
         <div className="likedBy" aria-label="Liked by">
           {visibleLikes.map((like) => (
-            <span key={like.fid}>
-              {like.username ? `@${like.username}` : like.displayName ?? "Anonymous"}
+            <span key={like.id}>
+              {like.username
+                ? `@${like.username}`
+                : like.displayName ?? (like.address ? shortenAddress(like.address) : `FID ${like.fid}`)}
             </span>
           ))}
         </div>
@@ -192,10 +129,6 @@ export function LikePanel({
   );
 }
 
-async function registerUser(user: MiniAppUser, notificationDetails?: NotificationDetails) {
-  await fetch("/api/users", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...user, notificationDetails })
-  });
+function shortenAddress(address: string) {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }

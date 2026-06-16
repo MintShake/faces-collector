@@ -93,6 +93,29 @@ img { display: block; max-width: 100%; }
   transition: opacity 160ms ease;
 }
 .navBrowse:hover { opacity: 0.82; }
+.navConnect {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  transition: opacity 160ms ease, border-color 160ms ease;
+}
+.navConnect:hover { border-color: var(--cyan); }
+.navConnect.connected {
+  border-color: rgba(24, 200, 210, 0.4);
+  color: var(--cyan);
+}
+.navConnectLoading {
+  width: 76px;
+  background: var(--line);
+  border-color: transparent;
+}
 
 /* ─── About page ─── */
 .aboutSection {
@@ -1151,6 +1174,162 @@ h1 {
 @keyframes floatStack {
   0%, 100% { transform: translateY(0); }
   50%       { transform: translateY(-10px); }
+}
+
+/* ─── Badge chips (with share) ─── */
+.badgeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 2px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255,207,74,0.3), rgba(24,200,210,0.16));
+}
+.badgeChip span {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--night);
+}
+.badgeChip .shareWrap .shareButton {
+  height: 22px;
+  padding: 0 9px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.75);
+}
+
+/* ─── Share menu ─── */
+.shareWrap {
+  position: relative;
+  display: inline-flex;
+}
+.shareWrap .shareButton.compact { width: 100%; }
+.shareMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: var(--shadow);
+  animation: fadeUp 140ms ease both;
+}
+.shareMenu button {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.shareMenu button:hover { background: var(--bg); }
+
+/* ─── Connect modal ─── */
+.connectOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(7, 18, 31, 0.55);
+  backdrop-filter: blur(4px);
+  animation: fadeUp 160ms ease both;
+}
+.connectModal {
+  width: 100%;
+  max-width: 360px;
+  padding: 24px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.connectModal h3 {
+  font-size: 19px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.connectModal > p {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+.connectOption {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 140ms ease;
+}
+.connectOption:hover { border-color: var(--cyan); }
+.connectOption span {
+  font-size: 14px;
+  font-weight: 800;
+}
+.connectOption small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.farcasterOption {
+  cursor: default;
+}
+.connectCancel {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.connectCancel:hover { color: var(--ink); }
+
+/* ─── Page loading state ─── */
+.pageLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 50vh;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.pageLoadingSpinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  border-top-color: var(--cyan);
+  animation: spin 700ms linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ─── Tablet 640px+ ─── */

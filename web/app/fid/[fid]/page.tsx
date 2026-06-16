@@ -10,7 +10,7 @@ import { ReportButton } from "../../report-button";
 import { SafeImage } from "../../safe-image";
 import { ShareButton } from "../../share-button";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function FidPage({
   params
@@ -67,7 +67,15 @@ export default async function FidPage({
           {tile.profile?.bio && <p className="profileBio">{tile.profile.bio}</p>}
           <div className="badgeRow">
             {(tile.badges ?? []).map((badge) => (
-              <span key={badge.id} title={BADGE_DEFS[badge.id]?.desc}>{badge.label}</span>
+              <div key={badge.id} className="badgeChip">
+                <span title={BADGE_DEFS[badge.id]?.desc}>{badge.label}</span>
+                <ShareButton
+                  fid={tile.fid}
+                  variant="compact"
+                  label="Share"
+                  text={`I earned the "${badge.label}" badge on Faces — ${BADGE_DEFS[badge.id]?.desc ?? "profile pic history across the social web."}`}
+                />
+              </div>
             ))}
           </div>
           <div className="profileFacts">

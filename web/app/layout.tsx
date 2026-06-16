@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "./auth-context";
+import { ConnectModal } from "./connect-modal";
 import { Nav } from "./nav";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
@@ -46,8 +48,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Nav />
-        {children}
+        <AuthProvider>
+          <Nav />
+          {children}
+          <ConnectModal />
+        </AuthProvider>
       </body>
     </html>
   );

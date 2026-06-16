@@ -8,7 +8,9 @@ import {
 import { Redis } from "@upstash/redis";
 
 export type LikeUser = {
-  fid: number;
+  id: string;
+  fid?: number;
+  address?: string;
   username?: string;
   displayName?: string;
   pfpUrl?: string;
@@ -46,9 +48,33 @@ type LikeSummaryFile = {
   updatedAt: string;
 };
 
+const LIKE_SUMMARY_CACHE_TTL_MS = 10_000;
+let likeSummaryCache:
+  | {
+      expiresAt: number;
+      promise: Promise<Record<string, LikeSummary>>;
+    }
+  | undefined;
+
 export async function getLikeSummaryMap() {
-  const summary = await safeGetJson<LikeSummaryFile>("social/likes-summary.json");
-  return summary?.images ?? {};
+  const now = Date.now();
+
+  if (likeSummaryCache && likeSummaryCache.expiresAt > now) {
+    return likeSummaryCache.promise;
+  }
+
+  const promise = safeGetJson<LikeSummaryFile>("social/likes-summary.json").then((summary) => summary?.images ?? {});
+  likeSummaryCache = {
+    expiresAt: now + LIKE_SUMMARY_CACHE_TTL_MS,
+    promise
+  };
+
+  try {
+    return await promise;
+  } catch (error) {
+    likeSummaryCache = undefined;
+    throw error;
+  }
 }
 
 export async function getImageLikes(imageId: string) {
@@ -65,15 +91,15 @@ export async function updateImageLike(input: {
   const now = new Date().toISOString();
   const existing = await getImageLikes(input.imageId);
   const likes = { ...(existing?.likes ?? {}) };
-  const alreadyLiked = Boolean(likes[input.user.fid]);
+  const alreadyLiked = Boolean(likes[input.user.id]);
 
   if (input.action === "like") {
-    likes[input.user.fid] = {
+    likes[input.user.id] = {
       ...input.user,
-      likedAt: likes[input.user.fid]?.likedAt ?? now
+      likedAt: likes[input.user.id]?.likedAt ?? now
     };
   } else {
-    delete likes[input.user.fid];
+    delete likes[input.user.id];
   }
 
   const record: ImageLikeRecord = {
@@ -118,7 +144,7 @@ export async function getRegisteredUser(fid: number) {
 
 export async function notifyPfpOwner(input: {
   ownerFid: number;
-  liker: Pick<LikeUser, "fid" | "username" | "displayName">;
+  liker: Pick<LikeUser, "id" | "fid" | "address" | "username" | "displayName">;
   targetUrl: string;
 }) {
   const owner = await getRegisteredUser(input.ownerFid);
@@ -130,14 +156,14 @@ export async function notifyPfpOwner(input: {
 
   const likerName = input.liker.username
     ? `@${input.liker.username}`
-    : input.liker.displayName ?? `FID ${input.liker.fid}`;
+    : input.liker.displayName ?? (input.liker.address ? shortenAddress(input.liker.address) : `FID ${input.liker.fid}`);
   const response = await fetch(details.url, {
     method: "POST",
     headers: {
       "content-type": "application/json"
     },
     body: JSON.stringify({
-      notificationId: `like-${input.ownerFid}-${input.liker.fid}-${Date.now()}`.slice(0, 128),
+      notificationId: `like-${input.ownerFid}-${input.liker.id}-${Date.now()}`.slice(0, 128),
       title: "New Faces like",
       body: `${likerName} liked one of your PFPs.`,
       targetUrl: input.targetUrl,
@@ -154,6 +180,7 @@ export async function notifyPfpOwner(input: {
 }
 
 async function updateLikeSummary(record: ImageLikeRecord) {
+  likeSummaryCache = undefined;
   const now = new Date().toISOString();
   const summary = (await getJson<LikeSummaryFile>("social/likes-summary.json")) ?? {
     images: {},
@@ -320,4 +347,8 @@ function errorName(error: unknown) {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
+}
+
+function shortenAddress(address: string) {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }

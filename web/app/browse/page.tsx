@@ -3,7 +3,7 @@ import { GalleryControls } from "../gallery-controls";
 import { LiveRefresh } from "../live-refresh";
 import { getPfpGallery, getPfpStats } from "@/lib/pfps";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function BrowsePage() {
   const [tiles, stats] = await Promise.all([
