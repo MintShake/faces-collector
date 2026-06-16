@@ -8,11 +8,13 @@ import { SafeImage } from "./safe-image";
 export const revalidate = 60;
 
 export default async function Home() {
-  const [tilesRaw, stats] = await Promise.all([
+  const [tilesRaw, topTilesRaw, stats] = await Promise.all([
     getPfpGallery({ limit: 240, imagesPerFid: 5, sort: "newest" }),
+    getPfpGallery({ limit: 8, imagesPerFid: 5, sort: "count" }),
     getPfpStats()
   ]);
   const tiles = tilesRaw as FidTile[];
+  const topTiles = topTilesRaw as FidTile[];
 
   const recentChanges = tiles
     .flatMap((t) => t.images.map((img) => ({ fid: t.fid, profile: t.profile, image: img })))
@@ -20,7 +22,6 @@ export default async function Home() {
     .slice(0, 14);
 
   const heroImages = recentChanges.slice(0, 5).map((c) => c.image);
-  const topTiles = [...tiles].sort((a, b) => b.imageCount - a.imageCount).slice(0, 8);
 
   return (
     <main className="shell">
