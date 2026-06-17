@@ -1344,6 +1344,12 @@ h1 {
   cursor: pointer;
 }
 .connectCancel:hover { color: var(--ink); }
+.connectError {
+  margin: -4px 0 4px;
+  font-size: 12px;
+  color: var(--rose);
+  font-weight: 600;
+}
 
 /* ─── Page loading state ─── */
 .pageLoading {

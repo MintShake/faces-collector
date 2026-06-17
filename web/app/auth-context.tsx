@@ -28,7 +28,7 @@ type AuthState = {
   isConnectOpen: boolean;
   openConnect: () => void;
   closeConnect: () => void;
-  connectWallet: () => Promise<void>;
+  connectWallet: () => Promise<string | undefined>;
   setFarcasterIdentity: (user: FarcasterIdentity, notificationDetails?: NotificationDetails) => void;
   signOut: () => void;
 };
@@ -36,6 +36,7 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null);
 
 const WALLET_STORAGE_KEY = "faces.wallet";
+const FARCASTER_STORAGE_KEY = "faces.farcaster";
 
 const fallbackAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
 const fallbackHost = (() => {
@@ -96,6 +97,22 @@ function AuthState({ children }: { children: React.ReactNode }) {
         // Not in a Farcaster Mini App — fall through to browser identity.
       }
 
+      // Restore saved Farcaster session.
+      try {
+        const savedFarcaster = localStorage.getItem(FARCASTER_STORAGE_KEY);
+        if (savedFarcaster) {
+          const parsed = JSON.parse(savedFarcaster) as FarcasterIdentity;
+          if (!cancelled && parsed.fid) {
+            setIdentity(parsed);
+            setReady(true);
+            return;
+          }
+        }
+      } catch {
+        localStorage.removeItem(FARCASTER_STORAGE_KEY);
+      }
+
+      // Restore saved wallet session.
       try {
         const eth = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
         const saved = localStorage.getItem(WALLET_STORAGE_KEY);
@@ -121,25 +138,37 @@ function AuthState({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const connectWallet = useCallback(async () => {
+  const connectWallet = useCallback(async (): Promise<string | undefined> => {
     const eth = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
 
     if (!eth) {
-      window.open("https://metamask.io/download", "_blank", "noreferrer");
-      return;
+      return "No wallet found. Install MetaMask or use a wallet browser.";
     }
 
-    const accounts = await eth.request({ method: "eth_requestAccounts" }) as string[];
-    const address = accounts[0];
+    try {
+      const accounts = await eth.request({ method: "eth_requestAccounts" }) as string[];
+      const address = accounts[0];
 
-    if (!address) return;
+      if (!address) return "No account returned from wallet.";
 
-    localStorage.setItem(WALLET_STORAGE_KEY, address);
-    setIdentity({ kind: "wallet", address });
-    setConnectOpen(false);
+      localStorage.setItem(WALLET_STORAGE_KEY, address);
+      setIdentity({ kind: "wallet", address });
+      setConnectOpen(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
+        return "Connection cancelled.";
+      }
+      return "Wallet connection failed. Try again.";
+    }
   }, []);
 
   const setFarcasterIdentity = useCallback((user: FarcasterIdentity, notificationDetails?: NotificationDetails) => {
+    try {
+      localStorage.setItem(FARCASTER_STORAGE_KEY, JSON.stringify(user));
+    } catch {
+      // Storage full or restricted — session won't persist.
+    }
     setIdentity(user);
     setConnectOpen(false);
     void registerUser(user, notificationDetails);
@@ -147,6 +176,7 @@ function AuthState({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(() => {
     localStorage.removeItem(WALLET_STORAGE_KEY);
+    localStorage.removeItem(FARCASTER_STORAGE_KEY);
     setIdentity(null);
   }, []);
 

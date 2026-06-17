@@ -1,12 +1,20 @@
 "use client";
 
 import { SignInButton } from "@farcaster/auth-kit";
+import { useState } from "react";
 import { useFacesAuth } from "./auth-context";
 
 export function ConnectModal() {
   const { isConnectOpen, closeConnect, connectWallet, setFarcasterIdentity } = useFacesAuth();
+  const [walletError, setWalletError] = useState<string>();
 
   if (!isConnectOpen) return null;
+
+  async function handleWalletConnect() {
+    setWalletError(undefined);
+    const error = await connectWallet();
+    if (error) setWalletError(error);
+  }
 
   return (
     <div className="connectOverlay" role="dialog" aria-modal="true" aria-label="Connect to Faces" onClick={closeConnect}>
@@ -14,10 +22,11 @@ export function ConnectModal() {
         <h3>Connect to like &amp; earn badges</h3>
         <p>Faces requires a real identity — no anonymous activity.</p>
 
-        <button type="button" className="connectOption" onClick={connectWallet}>
+        <button type="button" className="connectOption" onClick={handleWalletConnect}>
           <span>Connect wallet</span>
           <small>MetaMask, Coinbase Wallet, and other browser wallets</small>
         </button>
+        {walletError && <p className="connectError">{walletError}</p>}
 
         <div className="connectOption farcasterOption">
           <span>Sign in with Farcaster</span>
