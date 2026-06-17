@@ -1536,6 +1536,11 @@ h1 {
   color: var(--cyan);
   text-decoration: underline;
 }
+.connectHint {
+  margin: -4px 0 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
 .connectCancel {
   display: block;
   width: 100%;

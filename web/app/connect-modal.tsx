@@ -50,6 +50,9 @@ export function ConnectModal() {
             )}
           </p>
         )}
+        {!walletError && !walletBusy && (
+          <p className="connectHint">If MetaMask doesn&apos;t pop up, click the extension icon in your browser toolbar.</p>
+        )}
 
         <div className="connectDivider"><span>or</span></div>
 

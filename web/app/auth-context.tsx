@@ -142,7 +142,13 @@ function AuthState({ children }: { children: React.ReactNode }) {
     const eth = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
 
     if (!eth) {
-      return "No wallet found. Install MetaMask or use a wallet browser.";
+      // On mobile there's no injected provider — deeplink into MetaMask's in-app browser.
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
+        return;
+      }
+      return "No wallet found — install the MetaMask browser extension to continue.";
     }
 
     try {
@@ -159,7 +165,7 @@ function AuthState({ children }: { children: React.ReactNode }) {
       if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
         return "Connection cancelled.";
       }
-      return "Wallet connection failed. Try again.";
+      return "Wallet connection failed — check the MetaMask extension and try again.";
     }
   }, []);
 
