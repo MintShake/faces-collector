@@ -481,6 +481,66 @@ h1 {
 /* ─── Home sections ─── */
 .homeSection { padding-top: 48px; }
 
+/* ─── Home info cards row ─── */
+.homeInfoRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding-top: 48px;
+}
+.infoCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--soft-shadow);
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+.infoCard:hover { border-color: rgba(24,200,210,0.4); transform: translateY(-2px); }
+.infoCard h3 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.infoCard p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.tokenAddressCompact {
+  font-size: 10px;
+  color: var(--muted);
+  word-break: break-all;
+  background: rgba(0,0,0,0.04);
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.infoCardLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.infoCardLinks a {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color 140ms ease;
+}
+.infoCardLinks a:hover { border-color: var(--cyan); }
+.infoCardLinks a.infoCardPrimary {
+  background: var(--cyan);
+  color: #fff;
+  border-color: transparent;
+}
+.infoCardCta {
+  margin-top: auto;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--cyan);
+}
+
 .sectionHeading {
   display: flex;
   align-items: baseline;

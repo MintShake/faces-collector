@@ -9,7 +9,6 @@ export function Nav() {
         <Link className="navBrand" href="/">Faces</Link>
         <LiveRefresh />
         <div className="navLinks">
-          <Link className="navLink" href="/about">Build</Link>
           <Link className="navBrowse" href="/browse">Browse</Link>
           <NavConnect />
         </div>
