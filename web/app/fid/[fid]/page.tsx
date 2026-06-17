@@ -6,6 +6,7 @@ import { ImageActions } from "../../image-actions";
 import { LikePanel } from "../../like-panel";
 import { SafeImage } from "../../safe-image";
 import { ShareButton } from "../../share-button";
+import { TipButton } from "../../tip-button";
 
 export const revalidate = 60;
 
@@ -75,6 +76,12 @@ export default async function FidPage({
               </a>
             )}
           </div>
+          {tile.profile?.verifications?.[0] && (
+            <TipButton
+              recipientAddress={tile.profile.verifications[0]}
+              recipientName={tile.profile?.displayName ?? tile.profile?.username ?? `FID ${tile.fid}`}
+            />
+          )}
         </div>
       </section>
 

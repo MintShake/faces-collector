@@ -1071,6 +1071,112 @@ h1 {
   color: var(--muted);
 }
 
+/* ─── Tip button ─── */
+.tipButton {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  margin-top: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--cyan);
+  background: rgba(24,200,210,0.08);
+  color: var(--cyan);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.tipButton:hover { background: rgba(24,200,210,0.18); }
+.tipSent {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--leaf);
+}
+.tipPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.tipHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+}
+.tipPrice {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.tipPresets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tipPreset {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 140ms ease;
+}
+.tipPreset:hover { border-color: var(--cyan); }
+.tipPreset.active {
+  border-color: var(--cyan);
+  background: rgba(24,200,210,0.1);
+  color: var(--cyan);
+}
+.tipInputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tipCustom {
+  width: 100px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+.tipCustom:focus { outline: 2px solid var(--cyan); border-color: transparent; }
+.tipUnit {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.tipUsd {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.tipError {
+  font-size: 12px;
+  color: var(--rose);
+  font-weight: 600;
+}
+.tipActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
 /* ─── Wrapped timeline summary ─── */
 .wrappedPanel {
   display: grid;
