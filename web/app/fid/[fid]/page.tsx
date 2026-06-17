@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFidTile } from "@/lib/pfps";
 import { BADGE_DEFS } from "@/lib/badges";
-import { CompareButton } from "../../compare-button";
 import { HideButton } from "../../hide-button";
 import { LikePanel } from "../../like-panel";
 import { LiveRefresh } from "../../live-refresh";
@@ -43,7 +42,6 @@ export default async function FidPage({
           <p>{profileLine(tile)}</p>
         </div>
         <div className="detailActions">
-          <CompareButton fid={tile.fid} />
           <ShareButton fid={tile.fid} count={tile.images.length} label="Share timeline" />
           <HideButton fid={tile.fid} />
         </div>
