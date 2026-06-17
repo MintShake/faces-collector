@@ -1493,8 +1493,48 @@ h1 {
   font-size: 12px;
   color: var(--muted);
 }
-.farcasterOption {
-  cursor: default;
+.connectOption:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.connectDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.connectDivider::before,
+.connectDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.connectFarcaster {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+}
+.connectFarcasterLabel span {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+.connectFarcasterLabel small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.connectError a {
+  color: var(--cyan);
+  text-decoration: underline;
 }
 .connectCancel {
   display: block;
