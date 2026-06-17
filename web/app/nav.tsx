@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LiveRefresh } from "./live-refresh";
 import { NavConnect } from "./nav-connect";
 
 export function Nav() {
@@ -6,6 +7,7 @@ export function Nav() {
     <nav className="globalNav" aria-label="Site navigation">
       <div className="navInner">
         <Link className="navBrand" href="/">Faces</Link>
+        <LiveRefresh />
         <div className="navLinks">
           <Link className="navLink" href="/about">Build</Link>
           <Link className="navBrowse" href="/browse">Browse</Link>

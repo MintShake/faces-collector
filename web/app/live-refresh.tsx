@@ -7,17 +7,19 @@ export function LiveRefresh({
   renderedAt,
   intervalMs = 60_000
 }: {
-  renderedAt: string;
+  renderedAt?: string;
   intervalMs?: number;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [lastUpdated, setLastUpdated] = useState(renderedAt);
+  const [lastUpdated, setLastUpdated] = useState(() => renderedAt ?? new Date().toISOString());
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState("just now");
 
   useEffect(() => {
-    setLastUpdated(renderedAt);
-    setLastUpdatedLabel(formatTime(renderedAt));
+    if (renderedAt) {
+      setLastUpdated(renderedAt);
+      setLastUpdatedLabel(formatTime(renderedAt));
+    }
   }, [renderedAt]);
 
   useEffect(() => {

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { GalleryControls } from "../gallery-controls";
-import { LiveRefresh } from "../live-refresh";
 import { getPfpGallery, getPfpStats } from "@/lib/pfps";
 
 export const revalidate = 60;
@@ -13,7 +12,6 @@ export default async function BrowsePage() {
 
   return (
     <main className="shell">
-      <LiveRefresh renderedAt={new Date().toISOString()} />
       <header className="topbar">
         <div>
           <span className="appMark">Faces</span>

@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { FidTile } from "@/lib/pfps";
 import { getPfpGallery, getPfpStats } from "@/lib/pfps";
 import { FidCard } from "./fid-card";
-import { LiveRefresh } from "./live-refresh";
 import { SafeImage } from "./safe-image";
 
 export const revalidate = 60;
@@ -25,8 +24,6 @@ export default async function Home() {
 
   return (
     <main className="shell">
-      <LiveRefresh renderedAt={new Date().toISOString()} />
-
       <section className="miniHero">
         <div className="heroCopy">
           <span className="appMark">Faces</span>
