@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { clampNumber, corsHeaders } from "@/lib/api";
+import { clampNumber, corsHeaders, logApiRequest, publicApiHeaders } from "@/lib/api";
 import { getFidTile } from "@/lib/pfps";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +8,12 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ fid: string }> }
 ) {
+  const startedAt = Date.now();
   const { fid } = await params;
   const numericFid = Number(fid);
 
   if (!Number.isInteger(numericFid) || numericFid <= 0) {
+    logApiRequest({ route: "faces.images", request, startedAt, status: 400, error: "invalid_fid" });
     return json({ ok: false, error: "fid must be a positive integer" }, 400);
   }
 
@@ -21,10 +23,19 @@ export async function GET(
   const tile = await getFidTile(numericFid);
 
   if (!tile) {
+    logApiRequest({ route: "faces.images", request, startedAt, status: 404, fid: numericFid, error: "not_found" });
     return json({ ok: false, error: "fid not found" }, 404);
   }
 
   const data = tile.images.slice(offset, offset + limit);
+  logApiRequest({
+    route: "faces.images",
+    request,
+    startedAt,
+    fid: numericFid,
+    count: data.length,
+    totalImages: tile.imageCount
+  });
 
   return json({
     ok: true,
@@ -49,6 +60,6 @@ export function OPTIONS() {
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
-    headers: corsHeaders()
+    headers: status === 200 ? publicApiHeaders() : corsHeaders()
   });
 }

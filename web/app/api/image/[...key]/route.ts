@@ -3,6 +3,7 @@ import {
   S3Client,
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
+import { logApiRequest } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,17 +14,20 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  const startedAt = Date.now();
   const { key: keyParts = [] } = await context.params;
   const key = keyParts.join("/");
 
   if (!isAllowedImageKey(key)) {
+    logApiRequest({ route: "image.proxy", request, startedAt, status: 404, imageKey: key, error: "invalid_key" });
     return new Response("Not found", { status: 404 });
   }
 
   const storage = s3Config();
 
   if (!storage) {
+    logApiRequest({ route: "image.proxy", request, startedAt, status: 503, imageKey: key, error: "storage_not_configured" });
     return new Response("Image storage is not configured", { status: 503 });
   }
 
@@ -37,22 +41,42 @@ export async function GET(_request: Request, context: RouteContext) {
     const body = await object.Body?.transformToByteArray();
 
     if (!body) {
+      logApiRequest({ route: "image.proxy", request, startedAt, status: 404, imageKey: key, error: "empty_body" });
       return new Response("Not found", { status: 404 });
     }
+
+    logApiRequest({
+      route: "image.proxy",
+      request,
+      startedAt,
+      imageKey: key,
+      count: body.byteLength
+    });
 
     return new Response(body, {
       headers: {
         "content-type": object.ContentType ?? "image/webp",
         "cache-control": "public, max-age=31536000, immutable",
+        "cdn-cache-control": "public, s-maxage=31536000, immutable",
+        "vercel-cdn-cache-control": "public, s-maxage=31536000, immutable",
         "x-content-type-options": "nosniff"
       }
     });
   } catch (error) {
     if (isMissingObject(error)) {
+      logApiRequest({ route: "image.proxy", request, startedAt, status: 404, imageKey: key, error: "missing_object" });
       return new Response("Not found", { status: 404 });
     }
 
     console.warn(`Could not proxy image ${key}: ${errorMessage(error)}`);
+    logApiRequest({
+      route: "image.proxy",
+      request,
+      startedAt,
+      status: 502,
+      imageKey: key,
+      error: errorMessage(error)
+    });
     return new Response("Image unavailable", { status: 502 });
   }
 }
