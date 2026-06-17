@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFidTile } from "@/lib/pfps";
 import { BADGE_DEFS } from "@/lib/badges";
-import { HideButton } from "../../hide-button";
 import { LikePanel } from "../../like-panel";
 import { LiveRefresh } from "../../live-refresh";
 import { ReportButton } from "../../report-button";
@@ -40,10 +39,6 @@ export default async function FidPage({
           <span className="appMark">Profile</span>
           <h1>{displayName(tile)}</h1>
           <p>{profileLine(tile)}</p>
-        </div>
-        <div className="detailActions">
-          <ShareButton fid={tile.fid} count={tile.images.length} label="Share timeline" />
-          <HideButton fid={tile.fid} />
         </div>
       </header>
 
