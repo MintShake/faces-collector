@@ -13,7 +13,7 @@ export function TipButton({
   recipientAddress,
   recipientName
 }: {
-  recipientAddress: string;
+  recipientAddress?: string;
   recipientName: string;
 }) {
   const { identity, openConnect } = useFacesAuth();
@@ -59,6 +59,8 @@ export function TipButton({
     setStatus("pending");
     setErrorMsg(undefined);
 
+    if (!recipientAddress) return;
+
     try {
       const rawAmount = BigInt(amount) * 10n ** TOKEN_DECIMALS;
       const data = encodeERC20Transfer(recipientAddress, rawAmount);
@@ -87,8 +89,13 @@ export function TipButton({
 
   if (!open) {
     return (
-      <button type="button" className="tipButton" onClick={() => setOpen(true)}>
-        Tip Faces token
+      <button
+        type="button"
+        className={recipientAddress ? "tipButton" : "tipButton tipButtonDisabled"}
+        title={recipientAddress ? undefined : "This profile hasn't linked a wallet to Farcaster yet"}
+        onClick={() => recipientAddress && setOpen(true)}
+      >
+        {recipientAddress ? "Tip Faces token" : "Tip unavailable"}
       </button>
     );
   }

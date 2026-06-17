@@ -76,12 +76,10 @@ export default async function FidPage({
               </a>
             )}
           </div>
-          {tile.profile?.verifications?.[0] && (
-            <TipButton
-              recipientAddress={tile.profile.verifications[0]}
-              recipientName={tile.profile?.displayName ?? tile.profile?.username ?? `FID ${tile.fid}`}
-            />
-          )}
+          <TipButton
+            recipientAddress={tile.profile?.verifications?.[0]}
+            recipientName={tile.profile?.displayName ?? tile.profile?.username ?? `FID ${tile.fid}`}
+          />
         </div>
       </section>
 
