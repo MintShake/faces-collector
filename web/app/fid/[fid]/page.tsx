@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFidTile } from "@/lib/pfps";
 import { BADGE_DEFS } from "@/lib/badges";
+import { ImageActions } from "../../image-actions";
 import { LikePanel } from "../../like-panel";
-import { ReportButton } from "../../report-button";
 import { SafeImage } from "../../safe-image";
 import { ShareButton } from "../../share-button";
 
@@ -30,11 +30,7 @@ export default async function FidPage({
   return (
     <main className="shell detailShell">
       <header className="detailHeader">
-        <Link className="backLink" href="/">
-          Back
-        </Link>
         <div>
-          <span className="appMark">Profile</span>
           <h1>{displayName(tile)}</h1>
           <p>{profileLine(tile)}</p>
         </div>
@@ -108,7 +104,7 @@ export default async function FidPage({
               <span>{formatDate(image.storedAt)}</span>
             </a>
             <LikePanel ownerFid={tile.fid} image={image} />
-            <ReportButton fid={tile.fid} imageId={image.id} />
+            <ImageActions ownerFid={tile.fid} fid={tile.fid} imageId={image.id} />
           </article>
         ))}
       </section>

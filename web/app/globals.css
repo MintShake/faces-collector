@@ -116,6 +116,34 @@ img { display: block; max-width: 100%; }
   background: var(--line);
   border-color: transparent;
 }
+.navAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid rgba(24, 200, 210, 0.4);
+  background: var(--surface);
+  overflow: hidden;
+  text-decoration: none;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.navAvatar:hover { border-color: var(--cyan); transform: scale(1.06); }
+.navAvatar img { width: 100%; height: 100%; object-fit: cover; }
+.navAvatarInitials {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.navAvatarLoading {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--line);
+}
 
 /* ─── About page ─── */
 .aboutSection {
