@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useWeb3ModalProvider } from "@web3modal/ethers/react";
 import { useFacesAuth } from "./auth-context";
 
 const FACES_TOKEN = "0xa199Ab829b992FD357E40F1E91be724D7273aa82";
@@ -27,6 +28,7 @@ type SwapQuote = {
 
 export function TipButton({ fid, recipientName }: { fid: number; recipientName: string }) {
   const { identity, openConnect } = useFacesAuth();
+  const { walletProvider } = useWeb3ModalProvider();
   const [open, setOpen]           = useState(false);
   const [amount, setAmount]       = useState(100);
   const [status, setStatus]       = useState<Status>("idle");
@@ -78,7 +80,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
   useEffect(() => {
     if (!open || identity?.kind !== "wallet") return;
-    const eth = getEthereum();
+    const eth = walletProvider as EthereumProvider | undefined;
     if (!eth) return;
     const addr = identity.address.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
 
@@ -89,7 +91,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       setFacesBalance(BigInt((facesHex as string) || "0x0"));
       setUsdcBalance(BigInt((usdcHex  as string) || "0x0"));
     }).catch(() => {});
-  }, [open, identity]);
+  }, [open, identity, walletProvider]);
 
   // ── swap quote ─────────────────────────────────────────────────────────────
 
@@ -136,7 +138,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     if (identity.kind !== "wallet") { setErrorMsg("Connect a wallet to send tokens."); setStatus("error"); return; }
     if (!recipientAddress) { setErrorMsg("No wallet address found for this profile."); setStatus("error"); return; }
 
-    const eth = getEthereum();
+    const eth = (walletProvider ?? getEthereum()) as EthereumProvider | undefined;
     if (!eth) { setErrorMsg("No wallet found."); setStatus("error"); return; }
 
     setStatus("pending");
