@@ -1149,23 +1149,11 @@ h1 {
   color: var(--cyan);
 }
 .tipPreset.active small { color: var(--cyan); opacity: 0.7; }
-.tipBuyPrompt {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255,207,74,0.1);
-  border: 1px solid rgba(255,207,74,0.4);
-}
-.tipBuyPrompt p { font-size: 12px; color: var(--ink); font-weight: 600; }
-.tipBuyLink {
-  font-size: 12px;
-  font-weight: 700;
+.tipBuyHint {
+  font-size: 11px;
   color: var(--cyan);
-  text-decoration: none;
+  font-weight: 600;
 }
-.tipBuyLink:hover { text-decoration: underline; }
 .tipInputRow {
   display: flex;
   align-items: center;
