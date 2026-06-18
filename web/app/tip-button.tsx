@@ -79,12 +79,46 @@ export function TipButton({
     setErrorMsg(undefined);
 
     try {
-      const rawAmount = BigInt(amount) * 10n ** TOKEN_DECIMALS;
-      const data = encodeERC20Transfer(recipientAddress, rawAmount);
+      // 1. Switch to Base (chainId 8453 = 0x2105).
+      try {
+        await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x2105" }] });
+      } catch (switchErr) {
+        const code = (switchErr as { code?: number }).code;
+        if (code === 4902) {
+          // Base not in wallet — add it.
+          await eth.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: "0x2105",
+              chainName: "Base",
+              nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+              rpcUrls: ["https://mainnet.base.org"],
+              blockExplorerUrls: ["https://basescan.org"]
+            }]
+          });
+        } else {
+          throw switchErr;
+        }
+      }
 
+      // 2. Check FACES token balance.
+      const rawAmount = BigInt(amount) * 10n ** TOKEN_DECIMALS;
+      const balanceData = "0x70a08231" + identity.address.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
+      const balanceHex = await eth.request({ method: "eth_call", params: [{ to: TOKEN_CONTRACT, data: balanceData }, "latest"] }) as string;
+      const balance = BigInt(balanceHex || "0x0");
+
+      if (balance < rawAmount) {
+        const readable = Number(balance / 10n ** 16n) / 100;
+        setErrorMsg(`Insufficient balance — you have ${readable.toLocaleString()} FACES.`);
+        setStatus("idle");
+        return;
+      }
+
+      // 3. Send the ERC-20 transfer.
+      const txData = encodeERC20Transfer(recipientAddress, rawAmount);
       await eth.request({
         method: "eth_sendTransaction",
-        params: [{ from: identity.address, to: TOKEN_CONTRACT, data }]
+        params: [{ from: identity.address, to: TOKEN_CONTRACT, data: txData }]
       });
 
       setStatus("sent");
@@ -94,7 +128,7 @@ export function TipButton({
       if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
         setStatus("idle");
       } else {
-        setErrorMsg("Transaction failed. Try again.");
+        setErrorMsg("Transaction failed — check your wallet and try again.");
         setStatus("error");
       }
     }
