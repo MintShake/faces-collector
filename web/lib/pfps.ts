@@ -123,7 +123,14 @@ export async function getFidTile(fid: number): Promise<FidTile | undefined> {
   };
 }
 
+const profileCache = new Map<number, { expiresAt: number; value: FidProfile | undefined }>();
+const PROFILE_CACHE_TTL_MS = 60_000;
+
 export async function getFidProfile(fid: number): Promise<FidProfile | undefined> {
+  const now = Date.now();
+  const cached = profileCache.get(fid);
+  if (cached && cached.expiresAt > now) return cached.value;
+
   const s3 = s3Config();
 
   if (!s3) {
@@ -139,13 +146,16 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
     );
     const text = await object.Body?.transformToString();
 
-    if (!text) {
-      return undefined;
-    }
+    const cache = (v: FidProfile | undefined) => {
+      profileCache.set(fid, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, value: v });
+      return v;
+    };
+
+    if (!text) return cache(undefined);
 
     const profile = JSON.parse(text) as FidProfile;
 
-    return {
+    return cache({
       fid,
       username: profile.username,
       displayName: profile.displayName,
@@ -162,11 +172,12 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
       verifications: profile.verifications,
       farcasterScore: profile.farcasterScore,
       neynarEnrichedAt: profile.neynarEnrichedAt
-    };
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown profile read error";
 
     if (message.includes("NoSuchKey") || message.includes("404")) {
+      profileCache.set(fid, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, value: undefined });
       return undefined;
     }
 
@@ -330,21 +341,25 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     .filter((tile) => !options.minImages || tile.imageCount >= options.minImages)
     .sort((a, b) => compareTiles(a, b, options.sort ?? "count", options.order ?? "desc", scoreIndex));
 
-  // Apply query filter — numeric matches FID, text matches username/displayName.
+  // Apply query filter — numeric matches FID, text loads profiles for gallery tiles.
   let filtered = tiles;
   if (options.query) {
     const q = options.query.toLowerCase();
     if (/^\d+$/.test(q)) {
       filtered = tiles.filter((t) => String(t.fid).includes(q));
     } else {
-      const nameIndex = await getProfileNameIndex();
-      filtered = tiles.filter((t) => {
-        const n = nameIndex.get(t.fid);
-        return (
-          n?.username?.toLowerCase().includes(q) ||
-          n?.displayName?.toLowerCase().includes(q)
-        );
-      });
+      // Text search: load profiles in parallel for the top N tiles (by current sort).
+      // Bounded to avoid serverless timeouts on large datasets.
+      const TEXT_SEARCH_CAP = 500;
+      const candidates = tiles.slice(0, TEXT_SEARCH_CAP);
+      const profiles = await Promise.all(candidates.map((t) => getFidProfile(t.fid)));
+      filtered = candidates
+        .map((tile, i) => ({ tile, profile: profiles[i] }))
+        .filter(({ profile }) =>
+          profile?.username?.toLowerCase().includes(q) ||
+          profile?.displayName?.toLowerCase().includes(q)
+        )
+        .map(({ tile, profile }) => ({ ...tile, profile }));
     }
   }
 
@@ -352,39 +367,6 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
   const limited = options.limit ? filtered.slice(offset, offset + options.limit) : filtered.slice(offset);
 
   return limited;
-}
-
-type NameEntry = { username?: string; displayName?: string };
-let nameIndexCache: { expiresAt: number; data: Map<number, NameEntry> } | undefined;
-const NAME_INDEX_TTL_MS = 10 * 60_000;
-
-async function getProfileNameIndex(): Promise<Map<number, NameEntry>> {
-  const now = Date.now();
-  if (nameIndexCache && nameIndexCache.expiresAt > now) return nameIndexCache.data;
-
-  // Discover all profile FIDs from the state/ blob listing.
-  const stateBlobs = await listAllBlobs("state/fids/");
-  const fids = stateBlobs.flatMap((b) => {
-    const m = b.pathname.match(/^state\/fids\/(\d+)\.json$/);
-    return m ? [Number(m[1])] : [];
-  });
-
-  const index = new Map<number, NameEntry>();
-  const BATCH = 50;
-
-  for (let i = 0; i < fids.length; i += BATCH) {
-    await Promise.all(
-      fids.slice(i, i + BATCH).map(async (fid) => {
-        const profile = await getFidProfile(fid);
-        if (profile?.username || profile?.displayName) {
-          index.set(fid, { username: profile.username, displayName: profile.displayName });
-        }
-      })
-    );
-  }
-
-  nameIndexCache = { expiresAt: now + NAME_INDEX_TTL_MS, data: index };
-  return index;
 }
 
 async function getScoreIndex(): Promise<Record<string, number>> {

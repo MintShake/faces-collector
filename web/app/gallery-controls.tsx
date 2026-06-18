@@ -83,12 +83,13 @@ export function GalleryControls({
     <>
       <section className="controls" aria-label="Gallery controls">
         <label>
-          <span>Search</span>
+          <span>Search {isLoading && query ? "…" : ""}</span>
           <input
             type="search"
             placeholder="Name or FID"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            style={isLoading && query ? { opacity: 0.6 } : undefined}
           />
         </label>
 
