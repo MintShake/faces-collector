@@ -86,8 +86,7 @@ export function GalleryControls({
           <span>Search</span>
           <input
             type="search"
-            inputMode="numeric"
-            placeholder="Search by ID"
+            placeholder="Name or FID"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />

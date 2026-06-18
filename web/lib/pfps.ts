@@ -258,8 +258,10 @@ export async function getObjectStorageStats() {
 }
 
 async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}) {
+  // Use fid-specific prefix when fetching a single profile — avoids scanning all blobs.
+  const blobPrefix = options.fid ? `pfps/${options.fid}/` : "pfps/";
   const [blobs, likeSummary, badgeSummary, scoreIndex] = await Promise.all([
-    listAllBlobs("pfps/"),
+    listAllBlobs(blobPrefix),
     getLikeSummaryMap(),
     options.fid ? Promise.resolve({} as Record<string, Array<{ id: string; label: string }>>) : getBadgeSummary(),
     options.sort === "score" ? getScoreIndex() : Promise.resolve({} as Record<string, number>)
@@ -325,14 +327,64 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
       };
     })
     .filter((tile) => tile.images.length > 0)
-    .filter((tile) => !options.query || String(tile.fid).includes(options.query))
     .filter((tile) => !options.minImages || tile.imageCount >= options.minImages)
     .sort((a, b) => compareTiles(a, b, options.sort ?? "count", options.order ?? "desc", scoreIndex));
 
+  // Apply query filter — numeric matches FID, text matches username/displayName.
+  let filtered = tiles;
+  if (options.query) {
+    const q = options.query.toLowerCase();
+    if (/^\d+$/.test(q)) {
+      filtered = tiles.filter((t) => String(t.fid).includes(q));
+    } else {
+      const nameIndex = await getProfileNameIndex();
+      filtered = tiles.filter((t) => {
+        const n = nameIndex.get(t.fid);
+        return (
+          n?.username?.toLowerCase().includes(q) ||
+          n?.displayName?.toLowerCase().includes(q)
+        );
+      });
+    }
+  }
+
   const offset = options.offset ?? 0;
-  const limited = options.limit ? tiles.slice(offset, offset + options.limit) : tiles.slice(offset);
+  const limited = options.limit ? filtered.slice(offset, offset + options.limit) : filtered.slice(offset);
 
   return limited;
+}
+
+type NameEntry = { username?: string; displayName?: string };
+let nameIndexCache: { expiresAt: number; data: Map<number, NameEntry> } | undefined;
+const NAME_INDEX_TTL_MS = 10 * 60_000;
+
+async function getProfileNameIndex(): Promise<Map<number, NameEntry>> {
+  const now = Date.now();
+  if (nameIndexCache && nameIndexCache.expiresAt > now) return nameIndexCache.data;
+
+  // Discover all profile FIDs from the state/ blob listing.
+  const stateBlobs = await listAllBlobs("state/fids/");
+  const fids = stateBlobs.flatMap((b) => {
+    const m = b.pathname.match(/^state\/fids\/(\d+)\.json$/);
+    return m ? [Number(m[1])] : [];
+  });
+
+  const index = new Map<number, NameEntry>();
+  const BATCH = 50;
+
+  for (let i = 0; i < fids.length; i += BATCH) {
+    await Promise.all(
+      fids.slice(i, i + BATCH).map(async (fid) => {
+        const profile = await getFidProfile(fid);
+        if (profile?.username || profile?.displayName) {
+          index.set(fid, { username: profile.username, displayName: profile.displayName });
+        }
+      })
+    );
+  }
+
+  nameIndexCache = { expiresAt: now + NAME_INDEX_TTL_MS, data: index };
+  return index;
 }
 
 async function getScoreIndex(): Promise<Record<string, number>> {

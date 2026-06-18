@@ -6,8 +6,10 @@ export function Nav() {
   return (
     <nav className="globalNav" aria-label="Site navigation">
       <div className="navInner">
-        <Link className="navBrand" href="/">Faces</Link>
-        <LiveRefresh />
+        <div className="navBrandGroup">
+          <Link className="navBrand" href="/">Faces</Link>
+          <LiveRefresh />
+        </div>
         <div className="navLinks">
           <Link className="navBrowse" href="/browse">Browse</Link>
           <NavConnect />

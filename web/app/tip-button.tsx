@@ -29,6 +29,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
   const [errorMsg, setErrorMsg] = useState<string>();
   const [tokenPrice, setTokenPrice] = useState<number>();
   const [recipientAddress, setRecipientAddress] = useState<string>();
+  const [labeledAddresses, setLabeledAddresses] = useState<LabeledAddress[]>([]);
   const [addressLoading, setAddressLoading] = useState(false);
   const [userBalance, setUserBalance] = useState<bigint | null>(null);
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
@@ -41,9 +42,13 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     setAddressLoading(true);
     fetch(`/api/faces/${fid}/wallet`)
       .then((r) => r.json())
-      .then((data: { ok: boolean; addresses?: string[] }) => {
-        if (data.ok && data.addresses?.[0]) setRecipientAddress(data.addresses[0]);
-        else setErrorMsg("This profile hasn't linked a wallet to Farcaster.");
+      .then((data: { ok: boolean; addresses?: string[]; labeled?: LabeledAddress[] }) => {
+        if (data.ok && data.addresses?.[0]) {
+          setRecipientAddress(data.addresses[0]);
+          setLabeledAddresses(data.labeled ?? []);
+        } else {
+          setErrorMsg("This profile hasn't linked a wallet to Farcaster.");
+        }
       })
       .catch(() => setErrorMsg("Could not look up wallet address."))
       .finally(() => setAddressLoading(false));
@@ -194,6 +199,29 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
       {recipientAddress && (
         <>
+          {labeledAddresses.length > 1 ? (
+            <div className="tipAddressRow">
+              <span className="tipAddressLabel">Send to:</span>
+              <select
+                className="tipAddressSelect"
+                value={recipientAddress}
+                onChange={(e) => setRecipientAddress(e.target.value)}
+              >
+                {labeledAddresses.map((l) => (
+                  <option key={l.address} value={l.address}>
+                    {l.label} · {l.address.slice(0, 6)}…{l.address.slice(-4)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : recipientAddress && (
+            <p className="tipHint">
+              {labeledAddresses[0]?.label ?? "Sending to"}{" "}
+              <strong>{recipientAddress.slice(0, 6)}…{recipientAddress.slice(-4)}</strong>
+              {labeledAddresses[0]?.isVerified && <span className="tipVerifiedBadge"> ✓</span>}
+            </p>
+          )}
+
           {balanceReadable !== null && (
             <p className="tipHint">
               Your balance: <strong>{balanceReadable.toLocaleString()} FACES</strong>
@@ -303,4 +331,10 @@ function trimEth(s: string): string {
 
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+};
+
+type LabeledAddress = {
+  address: string;
+  label: string;
+  isVerified: boolean;
 };

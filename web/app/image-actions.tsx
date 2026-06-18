@@ -25,14 +25,13 @@ function RemoveButton({ fid, imageId }: { fid: number; imageId?: string }) {
 
   async function remove() {
     setStatus("busy");
-
     try {
-      const response = await fetch("/api/reports", {
+      const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ fid, imageId, reason: "owner_remove" })
       });
-      setStatus(response.ok ? "sent" : "idle");
+      setStatus(res.ok ? "sent" : "idle");
     } catch {
       setStatus("idle");
     }
@@ -40,32 +39,105 @@ function RemoveButton({ fid, imageId }: { fid: number; imageId?: string }) {
 
   return (
     <button className="textButton danger" type="button" onClick={remove} disabled={status !== "idle"}>
-      {status === "sent" ? "Removed" : status === "busy" ? "Removing" : "Remove"}
+      {status === "sent" ? "Removed" : status === "busy" ? "Removing…" : "Remove"}
     </button>
   );
 }
 
+const REPORT_REASONS = [
+  { value: "not_me", label: "Not me / wrong person" },
+  { value: "offensive", label: "Offensive or harmful" },
+  { value: "outdated", label: "Outdated / want removed" },
+  { value: "other", label: "Other" },
+];
+
 function ReportButton({ fid, imageId }: { fid: number; imageId?: string }) {
-  const [status, setStatus] = useState<"idle" | "sent" | "busy">("idle");
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("not_me");
+  const [note, setNote] = useState("");
+  const [status, setStatus] = useState<"idle" | "busy" | "sent">("idle");
 
-  async function report() {
+  async function submit() {
     setStatus("busy");
-
     try {
-      const response = await fetch("/api/reports", {
+      const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ fid, imageId, reason: "user_reported" })
+        body: JSON.stringify({
+          fid,
+          imageId,
+          reason,
+          note: note.trim() || undefined,
+          reporterContext: "user_reported"
+        })
       });
-      setStatus(response.ok ? "sent" : "idle");
+      if (res.ok) {
+        setStatus("sent");
+        setOpen(false);
+      } else {
+        setStatus("idle");
+      }
     } catch {
       setStatus("idle");
     }
   }
 
+  if (status === "sent") {
+    return <span className="textButton muted">Reported</span>;
+  }
+
+  if (!open) {
+    return (
+      <button className="textButton danger" type="button" onClick={() => setOpen(true)}>
+        Report
+      </button>
+    );
+  }
+
   return (
-    <button className="textButton danger" type="button" onClick={report} disabled={status !== "idle"}>
-      {status === "sent" ? "Reported" : status === "busy" ? "Sending" : "Report"}
-    </button>
+    <div className="reportPanel">
+      <p className="reportLabel">Why are you reporting this?</p>
+      <div className="reportReasons">
+        {REPORT_REASONS.map((r) => (
+          <label key={r.value} className={reason === r.value ? "reportReason active" : "reportReason"}>
+            <input
+              type="radio"
+              name={`report-reason-${imageId ?? fid}`}
+              value={r.value}
+              checked={reason === r.value}
+              onChange={() => setReason(r.value)}
+            />
+            {r.label}
+          </label>
+        ))}
+      </div>
+      {(reason === "other" || reason === "offensive") && (
+        <textarea
+          className="reportNote"
+          placeholder="Optional: add details…"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          maxLength={300}
+          rows={2}
+        />
+      )}
+      <div className="reportActions">
+        <button
+          type="button"
+          className="primaryButton small"
+          onClick={submit}
+          disabled={status === "busy"}
+        >
+          {status === "busy" ? "Sending…" : "Submit report"}
+        </button>
+        <button
+          type="button"
+          className="textButton"
+          onClick={() => { setOpen(false); setStatus("idle"); }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }

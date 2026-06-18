@@ -26,13 +26,24 @@ export async function GET(
         const data = await res.json() as { users?: NeynarUser[] };
         const user = data.users?.[0];
         if (user) {
-          const addresses = [
+          const verified = [
             ...(user.verified_addresses?.eth_addresses ?? []),
             ...(user.verifications ?? []),
-            user.custody_address
           ].filter((a): a is string => typeof a === "string" && a.startsWith("0x"));
 
-          return NextResponse.json({ ok: true, addresses, custody: user.custody_address });
+          const custody = user.custody_address;
+          const addresses = [...new Set([...verified, custody])].filter(
+            (a): a is string => typeof a === "string" && a.startsWith("0x")
+          );
+
+          const labeled: LabeledAddress[] = [
+            ...verified.map((a) => ({ address: a, label: "Verified wallet", isVerified: true })),
+            ...(custody && !verified.includes(custody)
+              ? [{ address: custody, label: "Custody address", isVerified: false }]
+              : []),
+          ].filter((l, i, arr) => arr.findIndex(x => x.address === l.address) === i);
+
+          return NextResponse.json({ ok: true, addresses, labeled, custody });
         }
       }
     } catch { /* fall through */ }
@@ -42,7 +53,12 @@ export async function GET(
   try {
     const custody = await getCustodyAddress(numericFid);
     if (custody && custody !== "0x0000000000000000000000000000000000000000") {
-      return NextResponse.json({ ok: true, addresses: [custody], custody });
+      return NextResponse.json({
+        ok: true,
+        addresses: [custody],
+        labeled: [{ address: custody, label: "Custody address", isVerified: false }],
+        custody,
+      });
     }
   } catch { /* fall through */ }
 
@@ -80,4 +96,10 @@ type NeynarUser = {
   custody_address: string;
   verifications?: string[];
   verified_addresses?: { eth_addresses?: string[] };
+};
+
+type LabeledAddress = {
+  address: string;
+  label: string;
+  isVerified: boolean;
 };

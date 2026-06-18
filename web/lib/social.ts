@@ -168,20 +168,22 @@ export async function updateImageLike(input: {
   await updateLikeSummary(record);
 
   if (input.action === "like" && !alreadyLiked) {
-    const ownerProfile = await safeGetJson<RegisteredUser>(userPath(input.ownerFid));
-    appendActivityEvent({
-      type: "like",
-      actor: input.user.fid
-        ? { fid: input.user.fid, username: input.user.username, displayName: input.user.displayName, pfpUrl: input.user.pfpUrl }
-        : { address: input.user.address },
-      subject: {
-        fid: input.ownerFid,
-        username: ownerProfile?.username,
-        displayName: ownerProfile?.displayName,
-        imageId: input.imageId,
-        imageUrl: input.imageUrl,
-      },
-    }).catch(() => {}); // fire-and-forget; don't fail the like if log write fails
+    try {
+      const ownerProfile = await safeGetJson<RegisteredUser>(userPath(input.ownerFid));
+      await appendActivityEvent({
+        type: "like",
+        actor: input.user.fid
+          ? { fid: input.user.fid, username: input.user.username, displayName: input.user.displayName, pfpUrl: input.user.pfpUrl }
+          : { address: input.user.address },
+        subject: {
+          fid: input.ownerFid,
+          username: ownerProfile?.username,
+          displayName: ownerProfile?.displayName,
+          imageId: input.imageId,
+          imageUrl: input.imageUrl,
+        },
+      });
+    } catch { /* don't fail the like if log write fails */ }
   }
 
   return { record, alreadyLiked };
