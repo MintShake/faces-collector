@@ -87,8 +87,9 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     setSwapQuote(null);
     fetch(`/api/faces/token/swap-quote?fid=${fid}&amount=${amount}`, { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((data) => {
-        if ((data as SwapQuote).ok) setSwapQuote(data as SwapQuote);
+      .then((data: SwapQuote | { ok: false; error: string }) => {
+        if (data.ok) setSwapQuote(data as SwapQuote);
+        // else: no pool — swap unavailable, swapQuote stays null
       })
       .catch((err) => { if (err.name !== "AbortError") setSwapQuote(null); })
       .finally(() => setSwapLoading(false));
@@ -228,12 +229,16 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
             type="button"
             className="primaryButton"
             onClick={handleSend}
-            disabled={status === "pending" || (needsToBuy && swapLoading)}
+            disabled={status === "pending" || swapLoading || (needsToBuy && !swapQuote && !swapLoading)}
           >
             {status === "pending"
               ? needsToBuy ? "Buying & sending…" : "Sending…"
+              : needsToBuy && swapLoading
+              ? "Getting price…"
+              : needsToBuy && !swapQuote
+              ? "No liquidity pool yet"
               : needsToBuy
-              ? `Send ${amount.toLocaleString()} FACES${ethHint ? ` · ${ethHint} ETH` : ""}`
+              ? `Send ${amount.toLocaleString()} FACES · ${ethHint} ETH`
               : `Send ${amount.toLocaleString()} FACES`}
           </button>
           <button type="button" className="textButton" onClick={() => { setOpen(false); setStatus("idle"); setErrorMsg(undefined); }}>

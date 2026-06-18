@@ -45,7 +45,10 @@ export async function GET(req: NextRequest) {
     dexData.pairs?.find((p) => p.chainId === "base") ?? dexData.pairs?.[0];
 
   if (!pair?.priceNative) {
-    return NextResponse.json({ ok: false, error: "Could not fetch token price" }, { status: 503 });
+    return NextResponse.json(
+      { ok: false, error: "No liquidity pool found for FACES. Add liquidity on Uniswap V3 (Base) first." },
+      { status: 503 }
+    );
   }
 
   const priceNative = parseFloat(pair.priceNative);
