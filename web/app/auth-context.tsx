@@ -96,6 +96,7 @@ function AuthState({ children }: { children: React.ReactNode }) {
           setIdentity(user);
           setIsMiniApp(true);
           await registerUser(user, context.client.notificationDetails);
+          await sdk.actions.ready();
           setReady(true);
           return;
         }
