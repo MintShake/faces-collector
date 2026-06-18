@@ -14,7 +14,7 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Invalid FID" }, { status: 400 });
   }
 
-  // Try Neynar first — returns both custody and verified addresses.
+  // 1. Neynar — returns custody + verified ETH addresses.
   const neynarKey = process.env.NEYNAR_API_KEY;
   if (neynarKey) {
     try {
@@ -26,30 +26,37 @@ export async function GET(
         const data = await res.json() as { users?: NeynarUser[] };
         const user = data.users?.[0];
         if (user) {
-          const verified = [
-            ...(user.verified_addresses?.eth_addresses ?? []),
-            ...(user.verifications ?? []),
-          ].filter((a): a is string => typeof a === "string" && a.startsWith("0x"));
-
-          const custody = user.custody_address;
-          const addresses = [...new Set([...verified, custody])].filter(
-            (a): a is string => typeof a === "string" && a.startsWith("0x")
+          return buildResponse(
+            user.custody_address,
+            [
+              ...(user.verified_addresses?.eth_addresses ?? []),
+              ...(user.verifications ?? []),
+            ]
           );
-
-          const labeled: LabeledAddress[] = [
-            ...verified.map((a) => ({ address: a, label: "Verified wallet", isVerified: true })),
-            ...(custody && !verified.includes(custody)
-              ? [{ address: custody, label: "Custody address", isVerified: false }]
-              : []),
-          ].filter((l, i, arr) => arr.findIndex(x => x.address === l.address) === i);
-
-          return NextResponse.json({ ok: true, addresses, labeled, custody });
         }
       }
     } catch { /* fall through */ }
   }
 
-  // Fallback: read custody address on-chain from Farcaster's ID Registry on Optimism.
+  // 2. Warpcast public API — no key required.
+  try {
+    const res = await fetch(
+      `https://api.warpcast.com/v2/user?fid=${numericFid}`,
+      { next: { revalidate: 300 } }
+    );
+    if (res.ok) {
+      const data = await res.json() as { result?: { user?: WarpcastUser } };
+      const user = data.result?.user;
+      if (user) {
+        return buildResponse(
+          user.custodyAddress,
+          user.verifications ?? []
+        );
+      }
+    }
+  } catch { /* fall through */ }
+
+  // 3. On-chain IdRegistry — custody address only.
   try {
     const custody = await getCustodyAddress(numericFid);
     if (custody && custody !== "0x0000000000000000000000000000000000000000") {
@@ -65,11 +72,32 @@ export async function GET(
   return NextResponse.json({ ok: false, error: "Could not resolve wallet for this FID" }, { status: 404 });
 }
 
+function buildResponse(custodyRaw: string | undefined, verifiedRaw: (string | undefined)[]) {
+  // Normalise to lowercase for dedup.
+  const custody = custodyRaw?.toLowerCase();
+  const verified = verifiedRaw
+    .map((a) => a?.toLowerCase())
+    .filter((a): a is string => typeof a === "string" && a.startsWith("0x"));
+
+  const addresses = [...new Set([...verified, ...(custody ? [custody] : [])])];
+
+  const labeled: LabeledAddress[] = [
+    ...verified.map((a) => ({
+      address: a,
+      label: "Verified wallet",
+      isVerified: true,
+    })),
+    ...(custody && !verified.includes(custody)
+      ? [{ address: custody, label: "Custody address", isVerified: false }]
+      : []),
+  ].filter((l, i, arr) => arr.findIndex((x) => x.address === l.address) === i);
+
+  return NextResponse.json({ ok: true, addresses, labeled, custody: custody ?? null });
+}
+
 async function getCustodyAddress(fid: number): Promise<string | null> {
-  // custodyOf(uint256) selector = first 4 bytes of keccak256("custodyOf(uint256)")
-  const selector = "0x65269e47";
-  const paddedFid = fid.toString(16).padStart(64, "0");
-  const data = selector + paddedFid;
+  const selector = "0x65269e47"; // custodyOf(uint256)
+  const data = selector + fid.toString(16).padStart(64, "0");
 
   const res = await fetch(OP_RPC, {
     method: "POST",
@@ -78,17 +106,14 @@ async function getCustodyAddress(fid: number): Promise<string | null> {
       jsonrpc: "2.0",
       id: 1,
       method: "eth_call",
-      params: [{ to: ID_REGISTRY, data }, "latest"]
+      params: [{ to: ID_REGISTRY, data }, "latest"],
     }),
-    next: { revalidate: 3600 }
+    next: { revalidate: 3600 },
   });
 
   const json = await res.json() as { result?: string };
   const result = json.result;
-
   if (!result || result === "0x") return null;
-
-  // Result is a 32-byte padded address — take the last 20 bytes.
   return "0x" + result.slice(-40);
 }
 
@@ -96,6 +121,11 @@ type NeynarUser = {
   custody_address: string;
   verifications?: string[];
   verified_addresses?: { eth_addresses?: string[] };
+};
+
+type WarpcastUser = {
+  custodyAddress: string;
+  verifications?: string[];
 };
 
 type LabeledAddress = {
