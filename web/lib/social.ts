@@ -48,6 +48,36 @@ type LikeSummaryFile = {
   updatedAt: string;
 };
 
+export type ActivityEvent = {
+  id: string;
+  type: "like" | "tip";
+  at: string;
+  actor?: {
+    fid?: number;
+    address?: string;
+    username?: string;
+    displayName?: string;
+    pfpUrl?: string;
+  };
+  subject: {
+    fid: number;
+    username?: string;
+    displayName?: string;
+    imageId?: string;
+    imageUrl?: string;
+    amount?: number;
+    txHash?: string;
+  };
+};
+
+type ActivityLog = {
+  events: ActivityEvent[];
+  updatedAt: string;
+};
+
+const ACTIVITY_LOG_KEY = "social/activity-log.json";
+const ACTIVITY_LOG_MAX = 60;
+
 const LIKE_SUMMARY_CACHE_TTL_MS = 10_000;
 let likeSummaryCache:
   | {
@@ -79,6 +109,29 @@ export async function getLikeSummaryMap() {
 
 export async function getImageLikes(imageId: string) {
   return safeGetJson<ImageLikeRecord>(likePath(imageId));
+}
+
+export async function getActivityLog(): Promise<ActivityEvent[]> {
+  const log = await safeGetJson<ActivityLog>(ACTIVITY_LOG_KEY);
+  return log?.events ?? [];
+}
+
+export async function appendActivityEvent(
+  event: Omit<ActivityEvent, "id" | "at">
+): Promise<void> {
+  const now = new Date().toISOString();
+  const log = (await safeGetJson<ActivityLog>(ACTIVITY_LOG_KEY)) ?? {
+    events: [],
+    updatedAt: now,
+  };
+  const newEvent: ActivityEvent = {
+    id: `${event.type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    at: now,
+    ...event,
+  };
+  log.events = [newEvent, ...log.events].slice(0, ACTIVITY_LOG_MAX);
+  log.updatedAt = now;
+  await putJson(ACTIVITY_LOG_KEY, log);
 }
 
 export async function updateImageLike(input: {
@@ -113,6 +166,23 @@ export async function updateImageLike(input: {
 
   await putJson(likePath(input.imageId), record);
   await updateLikeSummary(record);
+
+  if (input.action === "like" && !alreadyLiked) {
+    const ownerProfile = await safeGetJson<RegisteredUser>(userPath(input.ownerFid));
+    appendActivityEvent({
+      type: "like",
+      actor: input.user.fid
+        ? { fid: input.user.fid, username: input.user.username, displayName: input.user.displayName, pfpUrl: input.user.pfpUrl }
+        : { address: input.user.address },
+      subject: {
+        fid: input.ownerFid,
+        username: ownerProfile?.username,
+        displayName: ownerProfile?.displayName,
+        imageId: input.imageId,
+        imageUrl: input.imageUrl,
+      },
+    }).catch(() => {}); // fire-and-forget; don't fail the like if log write fails
+  }
 
   return { record, alreadyLiked };
 }

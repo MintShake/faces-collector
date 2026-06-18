@@ -1743,6 +1743,84 @@ h1 {
   .hubRecent { grid-template-columns: repeat(3, 1fr); }
 }
 
+/* ─── Activity feed ─── */
+.activityFeed {
+  padding: 0 16px;
+  margin-bottom: 40px;
+}
+.activityEmpty {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 12px 0;
+}
+.activityList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.activityItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  transition: background 0.15s;
+}
+.activityItem:hover { background: var(--surface-hover, #f0f0f0); }
+.activityIcon {
+  font-size: 14px;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--cyan);
+}
+.activityBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.activityText {
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.activityActor {
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+.activityActor:hover { text-decoration: underline; }
+.activitySubject {
+  font-weight: 600;
+  color: var(--cyan);
+  text-decoration: none;
+}
+.activitySubject:hover { text-decoration: underline; }
+.activityAmount {
+  font-weight: 700;
+  color: var(--cyan);
+}
+.activityTime {
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.activityThumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 /* ─── Reduced motion ─── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

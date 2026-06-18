@@ -145,6 +145,17 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
       setStatus("sent");
       setOpen(false);
+      // Log the tip activity (best-effort).
+      fetch("/api/activity", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          subjectFid: fid,
+          subjectDisplayName: recipientName,
+          amount,
+          actorAddress: identity.address,
+        }),
+      }).catch(() => {});
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {

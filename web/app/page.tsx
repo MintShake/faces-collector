@@ -1,16 +1,19 @@
 import Link from "next/link";
 import type { FidTile } from "@/lib/pfps";
 import { getPfpGallery, getPfpStats } from "@/lib/pfps";
+import { getActivityLog } from "@/lib/social";
+import { ActivityFeed } from "./activity-feed";
 import { FidCard } from "./fid-card";
 import { SafeImage } from "./safe-image";
 
 export const revalidate = 60;
 
 export default async function Home() {
-  const [tilesRaw, topTilesRaw, stats] = await Promise.all([
+  const [tilesRaw, topTilesRaw, stats, activityEvents] = await Promise.all([
     getPfpGallery({ limit: 240, imagesPerFid: 5, sort: "newest" }),
     getPfpGallery({ limit: 8, imagesPerFid: 5, sort: "count" }),
-    getPfpStats()
+    getPfpStats(),
+    getActivityLog(),
   ]);
   const tiles = tilesRaw as FidTile[];
   const topTiles = topTilesRaw as FidTile[];
@@ -99,6 +102,8 @@ export default async function Home() {
           ))}
         </div>
       </section>
+
+      <ActivityFeed initial={activityEvents} />
 
       <section className="homeInfoRow">
         <div className="infoCard tokenInfoCard">
