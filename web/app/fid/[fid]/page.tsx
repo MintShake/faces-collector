@@ -77,7 +77,7 @@ export default async function FidPage({
             )}
           </div>
           <TipButton
-            recipientAddress={tile.profile?.verifications?.[0]}
+            fid={tile.fid}
             recipientName={tile.profile?.displayName ?? tile.profile?.username ?? `FID ${tile.fid}`}
           />
         </div>

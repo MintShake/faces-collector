@@ -10,10 +10,10 @@ const PRESETS = [100, 500, 1000, 5000];
 type Status = "idle" | "pending" | "sent" | "error";
 
 export function TipButton({
-  recipientAddress,
+  fid,
   recipientName
 }: {
-  recipientAddress?: string;
+  fid: number;
   recipientName: string;
 }) {
   const { identity, openConnect } = useFacesAuth();
@@ -22,7 +22,28 @@ export function TipButton({
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState<string>();
   const [tokenPrice, setTokenPrice] = useState<number>();
+  const [recipientAddress, setRecipientAddress] = useState<string>();
+  const [addressLoading, setAddressLoading] = useState(false);
 
+  // Fetch recipient wallet when panel opens.
+  useEffect(() => {
+    if (!open || recipientAddress) return;
+    setAddressLoading(true);
+
+    fetch(`/api/faces/${fid}/wallet`)
+      .then((r) => r.json())
+      .then((data: { ok: boolean; addresses?: string[] }) => {
+        if (data.ok && data.addresses?.[0]) {
+          setRecipientAddress(data.addresses[0]);
+        } else {
+          setErrorMsg("This profile hasn't linked a wallet to Farcaster.");
+        }
+      })
+      .catch(() => setErrorMsg("Could not look up wallet address."))
+      .finally(() => setAddressLoading(false));
+  }, [open, fid, recipientAddress]);
+
+  // Fetch live token price when panel opens.
   useEffect(() => {
     if (!open) return;
     fetch(`https://api.dexscreener.com/latest/dex/tokens/${TOKEN_CONTRACT}`)
@@ -37,29 +58,25 @@ export function TipButton({
   const usdValue = tokenPrice ? (amount * tokenPrice).toFixed(2) : null;
 
   async function sendTip() {
-    if (!identity) {
-      openConnect();
+    if (!identity) { openConnect(); return; }
+
+    if (identity.kind !== "wallet") {
+      setErrorMsg("Connect a wallet to send tokens.");
+      setStatus("error");
       return;
     }
 
-    if (identity.kind !== "wallet") {
-      setErrorMsg("Switch to a wallet connection to send tokens.");
+    if (!recipientAddress) {
+      setErrorMsg("No wallet address found for this profile.");
       setStatus("error");
       return;
     }
 
     const eth = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
-
-    if (!eth) {
-      setErrorMsg("No wallet found.");
-      setStatus("error");
-      return;
-    }
+    if (!eth) { setErrorMsg("No wallet found."); setStatus("error"); return; }
 
     setStatus("pending");
     setErrorMsg(undefined);
-
-    if (!recipientAddress) return;
 
     try {
       const rawAmount = BigInt(amount) * 10n ** TOKEN_DECIMALS;
@@ -89,13 +106,8 @@ export function TipButton({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        className={recipientAddress ? "tipButton" : "tipButton tipButtonDisabled"}
-        title={recipientAddress ? undefined : "This profile hasn't linked a wallet to Farcaster yet"}
-        onClick={() => recipientAddress && setOpen(true)}
-      >
-        {recipientAddress ? "Tip Faces token" : "Tip unavailable"}
+      <button type="button" className="tipButton" onClick={() => setOpen(true)}>
+        Tip Faces token
       </button>
     );
   }
@@ -104,56 +116,66 @@ export function TipButton({
     <div className="tipPanel">
       <div className="tipHeader">
         <span>Tip <strong>{recipientName}</strong></span>
-        {tokenPrice && (
-          <span className="tipPrice">1 FACES ≈ ${tokenPrice.toFixed(6)}</span>
-        )}
+        {tokenPrice && <span className="tipPrice">1 FACES ≈ ${tokenPrice.toFixed(6)}</span>}
       </div>
 
-      <div className="tipPresets">
-        {PRESETS.map((p) => (
-          <button
-            key={p}
-            type="button"
-            className={amount === p ? "tipPreset active" : "tipPreset"}
-            onClick={() => setAmount(p)}
-          >
-            {p.toLocaleString()}
-          </button>
-        ))}
-      </div>
+      {addressLoading && <p className="tipHint">Looking up wallet…</p>}
 
-      <div className="tipInputRow">
-        <input
-          type="number"
-          className="tipCustom"
-          min={1}
-          value={amount}
-          onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))}
-          aria-label="Tip amount in FACES"
-        />
-        <span className="tipUnit">FACES</span>
-        {usdValue && <span className="tipUsd">≈ ${usdValue}</span>}
-      </div>
+      {recipientAddress && (
+        <>
+          <p className="tipHint">→ {recipientAddress.slice(0, 6)}…{recipientAddress.slice(-4)}</p>
+
+          <div className="tipPresets">
+            {PRESETS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                className={amount === p ? "tipPreset active" : "tipPreset"}
+                onClick={() => setAmount(p)}
+              >
+                {p.toLocaleString()}
+              </button>
+            ))}
+          </div>
+
+          <div className="tipInputRow">
+            <input
+              type="number"
+              className="tipCustom"
+              min={1}
+              value={amount}
+              onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))}
+              aria-label="Tip amount in FACES"
+            />
+            <span className="tipUnit">FACES</span>
+            {usdValue && <span className="tipUsd">≈ ${usdValue}</span>}
+          </div>
+        </>
+      )}
 
       {errorMsg && <p className="tipError">{errorMsg}</p>}
 
-      <div className="tipActions">
-        <button
-          type="button"
-          className="primaryButton"
-          onClick={sendTip}
-          disabled={status === "pending"}
-        >
-          {status === "pending" ? "Sending…" : `Send ${amount.toLocaleString()} FACES`}
-        </button>
-        <button
-          type="button"
-          className="textButton"
-          onClick={() => { setOpen(false); setStatus("idle"); setErrorMsg(undefined); }}
-        >
-          Cancel
-        </button>
-      </div>
+      {!addressLoading && (
+        <div className="tipActions">
+          {recipientAddress && (
+            <button
+              type="button"
+              className="primaryButton"
+              onClick={sendTip}
+              disabled={status === "pending"}
+            >
+              {status === "pending" ? "Sending…" : `Send ${amount.toLocaleString()} FACES`}
+            </button>
+          )}
+          <button
+            type="button"
+            className="textButton"
+            onClick={() => { setOpen(false); setStatus("idle"); setErrorMsg(undefined); }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
