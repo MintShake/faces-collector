@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { useWeb3ModalProvider } from "@web3modal/ethers/react";
 import { useFacesAuth } from "./auth-context";
 
@@ -26,29 +27,73 @@ type SwapQuote = {
   priceUsd: number | null;
 };
 
-export function TipButton({ fid, recipientName }: { fid: number; recipientName: string }) {
-  const { identity, openConnect } = useFacesAuth();
-  const { walletProvider } = useWeb3ModalProvider();
-  const [open, setOpen]           = useState(false);
-  const [amount, setAmount]       = useState(100);
-  const [status, setStatus]       = useState<Status>("idle");
-  const [errorMsg, setErrorMsg]   = useState<string>();
+type EthereumProvider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+};
 
-  const [tokenPrice, setTokenPrice]         = useState<number>();
+type LabeledAddress = {
+  address: string;
+  label: string;
+  isVerified: boolean;
+};
+
+export function TipButton({ fid, recipientName }: { fid: number; recipientName: string }) {
+  const { identity, isMiniApp, openConnect } = useFacesAuth();
+  const { walletProvider } = useWeb3ModalProvider();
+
+  const [open, setOpen]         = useState(false);
+  const [amount, setAmount]     = useState(100);
+  const [status, setStatus]     = useState<Status>("idle");
+  const [errorMsg, setErrorMsg] = useState<string>();
+
+  // Resolved sender — may come from miniapp provider or Web3Modal.
+  const [senderAddress, setSenderAddress]   = useState<string | undefined>();
+  const [ethProvider, setEthProvider]       = useState<EthereumProvider | undefined>();
+  const [providerLoading, setProviderLoading] = useState(false);
+
+  const [tokenPrice, setTokenPrice]             = useState<number>();
   const [recipientAddress, setRecipientAddress] = useState<string>();
   const [labeledAddresses, setLabeledAddresses] = useState<LabeledAddress[]>([]);
-  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressLoading, setAddressLoading]     = useState(false);
 
   const [facesBalance, setFacesBalance] = useState<bigint | null>(null);
   const [usdcBalance, setUsdcBalance]   = useState<bigint | null>(null);
 
-  const [swapQuote, setSwapQuote]   = useState<SwapQuote | null>(null);
+  const [swapQuote, setSwapQuote]     = useState<SwapQuote | null>(null);
   const [swapLoading, setSwapLoading] = useState(false);
-  const [preferUsdc, setPreferUsdc] = useState(false);
+  const [preferUsdc, setPreferUsdc]   = useState(false);
 
   const swapAbort = useRef<AbortController | null>(null);
 
-  // ── data fetching ──────────────────────────────────────────────────────────
+  // ── resolve provider & sender address when panel opens ────────────────────
+
+  useEffect(() => {
+    if (!open) return;
+    setProviderLoading(true);
+
+    async function resolve() {
+      if (isMiniApp) {
+        const provider = await sdk.wallet.getEthereumProvider();
+        if (!provider) return;
+        const eth = provider as unknown as EthereumProvider;
+        const accounts = await eth.request({ method: "eth_accounts" }) as string[];
+        if (accounts[0]) {
+          setSenderAddress(accounts[0].toLowerCase());
+          setEthProvider(eth);
+        }
+      } else if (identity?.kind === "wallet") {
+        const provider = (walletProvider ?? getInjected()) as EthereumProvider | undefined;
+        if (provider) {
+          setSenderAddress(identity.address.toLowerCase());
+          setEthProvider(provider);
+        }
+      }
+    }
+
+    resolve().catch(() => {}).finally(() => setProviderLoading(false));
+  }, [open, isMiniApp, identity, walletProvider]);
+
+  // ── fetch recipient wallet ─────────────────────────────────────────────────
 
   useEffect(() => {
     if (!open || recipientAddress) return;
@@ -67,6 +112,8 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       .finally(() => setAddressLoading(false));
   }, [open, fid, recipientAddress]);
 
+  // ── token price ───────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!open) return;
     fetch(`https://api.dexscreener.com/latest/dex/tokens/${FACES_TOKEN}`)
@@ -78,25 +125,25 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       .catch(() => {});
   }, [open]);
 
+  // ── balances ──────────────────────────────────────────────────────────────
+
   useEffect(() => {
-    if (!open || identity?.kind !== "wallet") return;
-    const eth = walletProvider as EthereumProvider | undefined;
-    if (!eth) return;
-    const addr = identity.address.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
+    if (!open || !senderAddress || !ethProvider) return;
+    const addr = senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
 
     Promise.all([
-      eth.request({ method: "eth_call", params: [{ to: FACES_TOKEN, data: "0x70a08231" + addr }, "latest"] }),
-      eth.request({ method: "eth_call", params: [{ to: USDC_TOKEN,  data: "0x70a08231" + addr }, "latest"] }),
+      ethProvider.request({ method: "eth_call", params: [{ to: FACES_TOKEN, data: "0x70a08231" + addr }, "latest"] }),
+      ethProvider.request({ method: "eth_call", params: [{ to: USDC_TOKEN,  data: "0x70a08231" + addr }, "latest"] }),
     ]).then(([facesHex, usdcHex]) => {
       setFacesBalance(BigInt((facesHex as string) || "0x0"));
       setUsdcBalance(BigInt((usdcHex  as string) || "0x0"));
     }).catch(() => {});
-  }, [open, identity, walletProvider]);
+  }, [open, senderAddress, ethProvider]);
 
   // ── swap quote ─────────────────────────────────────────────────────────────
 
   const rawFacesAmount = BigInt(amount) * 10n ** TOKEN_DECIMALS;
-  const needsToBuy = identity?.kind === "wallet" && facesBalance !== null && facesBalance < rawFacesAmount;
+  const needsToBuy = senderAddress !== undefined && facesBalance !== null && facesBalance < rawFacesAmount;
 
   useEffect(() => {
     if (!open || !needsToBuy || !recipientAddress) return;
@@ -116,51 +163,57 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     return () => ctrl.abort();
   }, [open, needsToBuy, amount, fid, recipientAddress, preferUsdc]);
 
-  // ── derived display values ─────────────────────────────────────────────────
+  // ── derived display ────────────────────────────────────────────────────────
 
   const facesReadable = facesBalance !== null ? Number(facesBalance / 10n ** 16n) / 100 : null;
-  const usdcReadable  = usdcBalance  !== null ? Number(usdcBalance  / 10n ** 4n)  / 100 : null; // USDC 6 dec
+  const usdcReadable  = usdcBalance  !== null ? Number(usdcBalance  / 10n ** 4n)  / 100 : null;
   const usdFor = (n: number) => tokenPrice ? `≈ $${(n * tokenPrice).toFixed(2)}` : null;
   const canUseUsdc = usdcBalance !== null && usdcBalance > 0n;
 
-  const ethHint = swapQuote?.inputToken === "eth" && swapQuote.ethToSpend
+  const costHint = swapQuote?.inputToken === "usdc" && swapQuote.usdcToSpend
+    ? `~${swapQuote.usdcToSpend} USDC`
+    : swapQuote?.inputToken === "eth" && swapQuote.ethToSpend
     ? `~${trimEth(swapQuote.ethToSpend)} ETH`
     : null;
-  const usdcHint = swapQuote?.inputToken === "usdc" && swapQuote.usdcToSpend
-    ? `~${swapQuote.usdcToSpend} USDC`
-    : null;
-  const costHint = usdcHint ?? ethHint;
 
-  // ── send logic ─────────────────────────────────────────────────────────────
+  // ── send ──────────────────────────────────────────────────────────────────
 
   async function handleSend() {
     if (!identity) { openConnect(); return; }
-    if (identity.kind !== "wallet") { setErrorMsg("Connect a wallet to send tokens."); setStatus("error"); return; }
-    if (!recipientAddress) { setErrorMsg("No wallet address found for this profile."); setStatus("error"); return; }
 
-    const eth = (walletProvider ?? getEthereum()) as EthereumProvider | undefined;
-    if (!eth) { setErrorMsg("No wallet found."); setStatus("error"); return; }
+    if (!ethProvider || !senderAddress) {
+      if (isMiniApp) {
+        setErrorMsg("Wallet not available in this Farcaster client.");
+      } else {
+        openConnect();
+      }
+      return;
+    }
+
+    if (!recipientAddress) {
+      setErrorMsg("No wallet address found for this profile.");
+      setStatus("error");
+      return;
+    }
 
     setStatus("pending");
     setErrorMsg(undefined);
 
     try {
-      await switchToBase(eth);
+      await switchToBase(ethProvider);
 
       // Re-check FACES balance.
-      const balData  = "0x70a08231" + identity.address.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
-      const balHex   = await eth.request({ method: "eth_call", params: [{ to: FACES_TOKEN, data: balData }, "latest"] }) as string;
+      const balData = "0x70a08231" + senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
+      const balHex  = await ethProvider.request({ method: "eth_call", params: [{ to: FACES_TOKEN, data: balData }, "latest"] }) as string;
       const currentBalance = BigInt(balHex || "0x0");
       setFacesBalance(currentBalance);
 
       if (currentBalance >= rawFacesAmount) {
-        // Sufficient FACES — direct ERC-20 transfer.
-        await eth.request({
+        await ethProvider.request({
           method: "eth_sendTransaction",
-          params: [{ from: identity.address, to: FACES_TOKEN, data: encodeERC20Transfer(recipientAddress, rawFacesAmount) }],
+          params: [{ from: senderAddress, to: FACES_TOKEN, data: encodeERC20Transfer(recipientAddress, rawFacesAmount) }],
         });
       } else {
-        // Need to swap. Fetch quote if not already loaded.
         let quote = swapQuote;
         if (!quote) {
           const inputToken = preferUsdc && canUseUsdc ? "usdc" : "eth";
@@ -170,37 +223,30 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
           quote = data as SwapQuote;
         }
 
-        // If USDC swap, approve first.
         if (quote.approveToken && quote.approveAmount) {
           const allowanceData = "0xdd62ed3e"
-            + identity.address.replace(/^0x/i, "").toLowerCase().padStart(64, "0")
+            + senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0")
             + quote.to.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
-          const allowHex = await eth.request({ method: "eth_call", params: [{ to: quote.approveToken, data: allowanceData }, "latest"] }) as string;
+          const allowHex  = await ethProvider.request({ method: "eth_call", params: [{ to: quote.approveToken, data: allowanceData }, "latest"] }) as string;
           const allowance = BigInt(allowHex || "0x0");
           const needed    = BigInt(quote.approveAmount);
 
           if (allowance < needed) {
             setStatus("approving");
-            // approve(spender, amount)
             const approveData = "0x095ea7b3"
               + quote.to.replace(/^0x/i, "").toLowerCase().padStart(64, "0")
               + needed.toString(16).padStart(64, "0");
-            await eth.request({
+            await ethProvider.request({
               method: "eth_sendTransaction",
-              params: [{ from: identity.address, to: quote.approveToken, data: "0x" + approveData.replace(/^0x/, "") }],
+              params: [{ from: senderAddress, to: quote.approveToken, data: approveData }],
             });
             setStatus("pending");
           }
         }
 
-        await eth.request({
+        await ethProvider.request({
           method: "eth_sendTransaction",
-          params: [{
-            from: identity.address,
-            to: quote.to,
-            data: quote.calldata,
-            value: quote.value,
-          }],
+          params: [{ from: senderAddress, to: quote.to, data: quote.calldata, value: quote.value }],
         });
       }
 
@@ -209,7 +255,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       fetch("/api/activity", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ subjectFid: fid, subjectDisplayName: recipientName, amount, actorAddress: identity.address }),
+        body: JSON.stringify({ subjectFid: fid, subjectDisplayName: recipientName, amount, actorAddress: senderAddress }),
       }).catch(() => {});
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -222,7 +268,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     }
   }
 
-  // ── render ─────────────────────────────────────────────────────────────────
+  // ── render ────────────────────────────────────────────────────────────────
 
   if (status === "sent") return <span className="tipSent">Tip sent to {recipientName}!</span>;
 
@@ -233,6 +279,8 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       </button>
     );
   }
+
+  const loading = providerLoading || addressLoading;
 
   const sendLabel = () => {
     if (status === "approving") return "Approving USDC…";
@@ -250,11 +298,16 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
         {tokenPrice && <span className="tipPrice">1 FACES = ${tokenPrice.toFixed(6)}</span>}
       </div>
 
-      {addressLoading && <p className="tipHint">Looking up wallet…</p>}
+      {loading && <p className="tipHint">Loading…</p>}
+
+      {!loading && !senderAddress && !isMiniApp && (
+        <p className="tipHint">
+          <button type="button" className="inlineLink" onClick={openConnect}>Connect a wallet</button> to send tokens.
+        </p>
+      )}
 
       {recipientAddress && (
         <>
-          {/* Address selector */}
           {labeledAddresses.length > 1 ? (
             <div className="tipAddressRow">
               <span className="tipAddressLabel">Send to:</span>
@@ -270,7 +323,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
                 ))}
               </select>
             </div>
-          ) : recipientAddress && (
+          ) : (
             <p className="tipHint">
               {labeledAddresses[0]?.label ?? "Sending to"}{" "}
               <strong>{recipientAddress.slice(0, 6)}…{recipientAddress.slice(-4)}</strong>
@@ -278,7 +331,6 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
             </p>
           )}
 
-          {/* Balances */}
           <div className="tipBalances">
             {facesReadable !== null && (
               <span className={facesReadable >= amount ? "tipBalancePill ok" : "tipBalancePill low"}>
@@ -292,31 +344,16 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
             )}
           </div>
 
-          {/* Input toggle when buying needed */}
           {needsToBuy && canUseUsdc && (
             <div className="tipInputToggle">
-              <button
-                type="button"
-                className={!preferUsdc ? "tipToggleBtn active" : "tipToggleBtn"}
-                onClick={() => setPreferUsdc(false)}
-              >ETH</button>
-              <button
-                type="button"
-                className={preferUsdc ? "tipToggleBtn active" : "tipToggleBtn"}
-                onClick={() => setPreferUsdc(true)}
-              >USDC</button>
+              <button type="button" className={!preferUsdc ? "tipToggleBtn active" : "tipToggleBtn"} onClick={() => setPreferUsdc(false)}>ETH</button>
+              <button type="button" className={preferUsdc ? "tipToggleBtn active" : "tipToggleBtn"} onClick={() => setPreferUsdc(true)}>USDC</button>
             </div>
           )}
 
-          {/* Amount presets */}
           <div className="tipPresets">
             {PRESETS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                className={amount === p ? "tipPreset active" : "tipPreset"}
-                onClick={() => setAmount(p)}
-              >
+              <button key={p} type="button" className={amount === p ? "tipPreset active" : "tipPreset"} onClick={() => setAmount(p)}>
                 <span>{p.toLocaleString()}</span>
                 {usdFor(p) && <small>{usdFor(p)}</small>}
               </button>
@@ -324,11 +361,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
           </div>
 
           <div className="tipInputRow">
-            <input
-              type="number"
-              className="tipCustom"
-              min={1}
-              value={amount}
+            <input type="number" className="tipCustom" min={1} value={amount}
               onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))}
               aria-label="Tip amount in FACES"
             />
@@ -340,7 +373,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
       {errorMsg && <p className="tipError">{errorMsg}</p>}
 
-      {!addressLoading && recipientAddress && (
+      {!loading && (
         <div className="tipActions">
           <button
             type="button"
@@ -350,9 +383,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
           >
             {sendLabel()}
           </button>
-          <button
-            type="button"
-            className="textButton"
+          <button type="button" className="textButton"
             onClick={() => { setOpen(false); setStatus("idle"); setErrorMsg(undefined); }}
           >
             Cancel
@@ -384,7 +415,7 @@ async function switchToBase(eth: EthereumProvider) {
   }
 }
 
-function getEthereum(): EthereumProvider | undefined {
+function getInjected(): EthereumProvider | undefined {
   return (window as unknown as { ethereum?: EthereumProvider }).ethereum;
 }
 
@@ -392,13 +423,3 @@ function trimEth(s: string): string {
   const n = parseFloat(s);
   return isNaN(n) ? s : n.toPrecision(4).replace(/\.?0+$/, "");
 }
-
-type EthereumProvider = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-};
-
-type LabeledAddress = {
-  address: string;
-  label: string;
-  isVerified: boolean;
-};
