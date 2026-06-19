@@ -48,6 +48,25 @@ type LikeSummaryFile = {
   updatedAt: string;
 };
 
+export type ReportReason = "not_me" | "offensive" | "outdated" | "other" | "owner_remove";
+
+export type PendingReport = {
+  fid: number;
+  imageId: string;
+  reason: ReportReason;
+  note?: string;
+  reportCount: number;
+  firstReportedAt: string;
+  lastReportedAt: string;
+  status: "pending" | "hidden";
+  reviewedAt?: string;
+};
+
+type ModerationQueue = {
+  images: Record<string, PendingReport>;
+  updatedAt: string;
+};
+
 export type ActivityEvent = {
   id: string;
   type: "like" | "tip";
@@ -77,6 +96,7 @@ type ActivityLog = {
 
 const ACTIVITY_LOG_KEY = "social/activity-log.json";
 const ACTIVITY_LOG_MAX = 60;
+const MODERATION_QUEUE_KEY = "social/moderation/pending-reports.json";
 
 const LIKE_SUMMARY_CACHE_TTL_MS = 10_000;
 let likeSummaryCache:
@@ -212,6 +232,70 @@ export async function registerMiniAppUser(input: {
 
 export async function getRegisteredUser(fid: number) {
   return safeGetJson<RegisteredUser>(userPath(fid));
+}
+
+export async function getPendingReportMap() {
+  const queue = await safeGetJson<ModerationQueue>(MODERATION_QUEUE_KEY);
+  return queue?.images ?? {};
+}
+
+export async function getPendingReportedImageIds() {
+  return new Set(Object.keys(await getPendingReportMap()));
+}
+
+export async function addPendingImageReport(input: {
+  fid: number;
+  imageId: string;
+  reason: ReportReason;
+  note?: string;
+}) {
+  const now = new Date().toISOString();
+  const queue = (await safeGetJson<ModerationQueue>(MODERATION_QUEUE_KEY)) ?? {
+    images: {},
+    updatedAt: now
+  };
+  const existing = queue.images[input.imageId];
+
+  queue.images[input.imageId] = {
+    fid: input.fid,
+    imageId: input.imageId,
+    reason: input.reason,
+    note: input.note ?? existing?.note,
+    reportCount: (existing?.reportCount ?? 0) + 1,
+    firstReportedAt: existing?.firstReportedAt ?? now,
+    lastReportedAt: now,
+    status: existing?.status ?? "pending",
+    reviewedAt: existing?.reviewedAt
+  };
+  queue.updatedAt = now;
+
+  await putJson(MODERATION_QUEUE_KEY, queue);
+  return queue.images[input.imageId];
+}
+
+export async function reviewPendingImageReport(input: {
+  imageId: string;
+  action: "restore" | "keep_hidden";
+}) {
+  const now = new Date().toISOString();
+  const queue = (await safeGetJson<ModerationQueue>(MODERATION_QUEUE_KEY)) ?? {
+    images: {},
+    updatedAt: now
+  };
+
+  if (input.action === "restore") {
+    delete queue.images[input.imageId];
+  } else if (queue.images[input.imageId]) {
+    queue.images[input.imageId] = {
+      ...queue.images[input.imageId],
+      status: "hidden",
+      reviewedAt: now
+    };
+  }
+
+  queue.updatedAt = now;
+  await putJson(MODERATION_QUEUE_KEY, queue);
+  return queue.images[input.imageId];
 }
 
 export async function notifyPfpOwner(input: {

@@ -6,7 +6,7 @@ import {
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
 import { get, list } from "@vercel/blob";
-import { getLikeSummaryMap } from "./social";
+import { getLikeSummaryMap, getPendingReportedImageIds } from "./social";
 import { BADGE_DEFS, getBadgeSummary, awardFidBadges } from "./badges";
 
 export type PfpImage = {
@@ -287,12 +287,16 @@ export async function getRecentPfpImages(limit = 50) {
   const index = await getGalleryIndex();
 
   if (index) {
-    const likeSummary = await getLikeSummaryMap();
+    const [likeSummary, hiddenImageIds] = await Promise.all([
+      getLikeSummaryMap(),
+      getPendingReportedImageIds()
+    ]);
     return index.entries
       .flatMap((entry) => entry.images.map((image) => ({
         fid: entry.fid,
         image: imageFromIndex(image, likeSummary)
       })))
+      .filter((item) => !hiddenImageIds.has(item.image.id))
       .sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt))
       .slice(0, limit);
   }
@@ -309,19 +313,36 @@ export async function getPfpStats() {
   const index = await getGalleryIndex();
 
   if (index) {
-    const likeSummary = await getLikeSummaryMap();
+    const [likeSummary, hiddenImageIds] = await Promise.all([
+      getLikeSummaryMap(),
+      getPendingReportedImageIds()
+    ]);
     let totalLikes = 0;
+    let totalFids = 0;
+    let totalImages = 0;
     let newest: { fid: number; image: PfpImage } | undefined;
     let mostLiked: { fid: number; image: PfpImage } | undefined;
-    let topTimeline: GalleryIndexEntry | undefined;
+    let topTimeline: { fid: number; imageCount: number; latestImage?: PfpImage } | undefined;
 
     for (const entry of index.entries) {
-      if (!topTimeline || entry.imageCount > topTimeline.imageCount) {
-        topTimeline = entry;
+      const visibleImages = entry.images
+        .map((indexedImage) => imageFromIndex(indexedImage, likeSummary))
+        .filter((image) => !hiddenImageIds.has(image.id));
+
+      if (visibleImages.length === 0) continue;
+
+      totalFids += 1;
+      totalImages += visibleImages.length;
+
+      if (!topTimeline || visibleImages.length > topTimeline.imageCount) {
+        topTimeline = {
+          fid: entry.fid,
+          imageCount: visibleImages.length,
+          latestImage: visibleImages[0]
+        };
       }
 
-      for (const indexedImage of entry.images) {
-        const image = imageFromIndex(indexedImage, likeSummary);
+      for (const image of visibleImages) {
         totalLikes += image.likeCount;
 
         if (!newest || Date.parse(image.storedAt) > Date.parse(newest.image.storedAt)) {
@@ -335,15 +356,15 @@ export async function getPfpStats() {
     }
 
     return {
-      totalFids: index.totalFids,
-      totalImages: index.totalImages,
+      totalFids,
+      totalImages,
       totalLikes,
       newest: newest ?? null,
       topTimeline: topTimeline
         ? {
             fid: topTimeline.fid,
             imageCount: topTimeline.imageCount,
-            latestImage: topTimeline.images[0] ? imageFromIndex(topTimeline.images[0], likeSummary) : undefined
+            latestImage: topTimeline.latestImage
           }
         : null,
       mostLiked: mostLiked && mostLiked.image.likeCount > 0 ? mostLiked : null
@@ -430,11 +451,12 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
 
   // Use fid-specific prefix when fetching a single profile — avoids scanning all blobs.
   const blobPrefix = options.fid ? `pfps/${options.fid}/` : "pfps/";
-  const [blobs, likeSummary, badgeSummary, scoreIndex] = await Promise.all([
+  const [blobs, likeSummary, badgeSummary, scoreIndex, hiddenImageIds] = await Promise.all([
     listAllBlobs(blobPrefix),
     getLikeSummaryMap(),
     options.fid ? Promise.resolve({} as Record<string, Array<{ id: string; label: string }>>) : getBadgeSummary(),
-    options.sort === "score" ? getScoreIndex() : Promise.resolve({} as Record<string, number>)
+    options.sort === "score" ? getScoreIndex() : Promise.resolve({} as Record<string, number>),
+    getPendingReportedImageIds()
   ]);
   const byFid = new Map<number, Map<string, Partial<PfpImage> & { filename: string; storedAt: string; size: number }>>();
 
@@ -481,6 +503,7 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     .map(([fid, imageMap]) => {
       const images = [...imageMap.values()]
         .filter((image): image is PfpImage => Boolean(image.url))
+        .filter((image) => !hiddenImageIds.has(image.id))
         .map((image) => ({
           ...image,
           thumbUrl: image.thumbUrl ?? image.url,
@@ -566,21 +589,23 @@ async function getIndexedPfpGallery(options: GalleryOptions = {}): Promise<PfpGa
     return undefined;
   }
 
-  const [likeSummary, badgeSummary, scoreIndex] = await Promise.all([
+  const [likeSummary, badgeSummary, scoreIndex, hiddenImageIds] = await Promise.all([
     getLikeSummaryMap(),
     getBadgeSummary(),
-    options.sort === "score" ? getScoreIndex() : Promise.resolve({} as Record<string, number>)
+    options.sort === "score" ? getScoreIndex() : Promise.resolve({} as Record<string, number>),
+    getPendingReportedImageIds()
   ]);
   const tiles = index.entries
     .map((entry) => {
       const images = entry.images
         .map((image) => imageFromIndex(image, likeSummary))
+        .filter((image) => !hiddenImageIds.has(image.id))
         .sort((a, b) => Date.parse(b.storedAt) - Date.parse(a.storedAt));
       const badges = badgeSummary[String(entry.fid)] ?? [];
 
       return {
         fid: entry.fid,
-        imageCount: entry.imageCount,
+        imageCount: images.length,
         images: options.imagesPerFid ? images.slice(0, options.imagesPerFid) : images,
         badges: badges.length > 0 ? badges : undefined
       };

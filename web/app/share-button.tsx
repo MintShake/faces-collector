@@ -6,12 +6,14 @@ import { useEffect, useRef, useState } from "react";
 export function ShareButton({
   fid,
   count,
+  name,
   variant = "secondary",
   label,
   text
 }: {
   fid?: number;
   count?: number;
+  name?: string;
   variant?: "primary" | "secondary" | "compact";
   label?: string;
   text?: string;
@@ -44,7 +46,7 @@ export function ShareButton({
     const path = fid ? `/fid/${fid}` : "/";
     const url = new URL(path, window.location.origin).toString();
     const shareText = text ?? (fid
-      ? `${count?.toLocaleString() ?? "A"} profile pic${count === 1 ? "" : "s"} saved on Faces — every version of this person, in one place.`
+      ? `Check out ${possessiveName(name ?? `FID ${fid}`)} new profile image on Faces. It is fire.`
       : "Faces saves profile pic history across the social web.");
 
     return { url, shareText };
@@ -115,4 +117,10 @@ export function ShareButton({
       )}
     </div>
   );
+}
+
+function possessiveName(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "this profile's";
+  return trimmed.endsWith("s") ? `${trimmed}'` : `${trimmed}'s`;
 }

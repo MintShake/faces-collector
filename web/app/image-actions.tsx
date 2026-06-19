@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useFacesAuth } from "./auth-context";
 
 export function ImageActions({
@@ -22,6 +22,7 @@ export function ImageActions({
 
 function RemoveButton({ fid, imageId }: { fid: number; imageId?: string }) {
   const [status, setStatus] = useState<"idle" | "sent" | "busy">("idle");
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   async function remove() {
     setStatus("busy");
@@ -31,16 +32,23 @@ function RemoveButton({ fid, imageId }: { fid: number; imageId?: string }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ fid, imageId, reason: "owner_remove" })
       });
-      setStatus(res.ok ? "sent" : "idle");
+      if (res.ok) {
+        setStatus("sent");
+        hideReportedImage(wrapRef.current);
+      } else {
+        setStatus("idle");
+      }
     } catch {
       setStatus("idle");
     }
   }
 
   return (
-    <button className="textButton danger" type="button" onClick={remove} disabled={status !== "idle"}>
-      {status === "sent" ? "Removed" : status === "busy" ? "Removing…" : "Remove"}
-    </button>
+    <div ref={wrapRef}>
+      <button className="textButton danger" type="button" onClick={remove} disabled={status !== "idle"}>
+        {status === "sent" ? "Removed" : status === "busy" ? "Removing…" : "Remove"}
+      </button>
+    </div>
   );
 }
 
@@ -56,6 +64,9 @@ function ReportButton({ fid, imageId }: { fid: number; imageId?: string }) {
   const [reason, setReason] = useState("not_me");
   const [note, setNote] = useState("");
   const [status, setStatus] = useState<"idle" | "busy" | "sent">("idle");
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const noteRequired = reason === "other";
+  const canSubmit = Boolean(reason) && (!noteRequired || note.trim().length >= 3);
 
   async function submit() {
     setStatus("busy");
@@ -74,6 +85,7 @@ function ReportButton({ fid, imageId }: { fid: number; imageId?: string }) {
       if (res.ok) {
         setStatus("sent");
         setOpen(false);
+        hideReportedImage(wrapRef.current);
       } else {
         setStatus("idle");
       }
@@ -83,19 +95,21 @@ function ReportButton({ fid, imageId }: { fid: number; imageId?: string }) {
   }
 
   if (status === "sent") {
-    return <span className="textButton muted">Reported</span>;
+    return <span ref={wrapRef} className="textButton muted">Reported</span>;
   }
 
   if (!open) {
     return (
-      <button className="textButton danger" type="button" onClick={() => setOpen(true)}>
-        Report
-      </button>
+      <div ref={wrapRef}>
+        <button className="textButton danger" type="button" onClick={() => setOpen(true)}>
+          Report
+        </button>
+      </div>
     );
   }
 
   return (
-    <div className="reportPanel">
+    <div className="reportPanel" ref={wrapRef}>
       <p className="reportLabel">Why are you reporting this?</p>
       <div className="reportReasons">
         {REPORT_REASONS.map((r) => (
@@ -114,7 +128,7 @@ function ReportButton({ fid, imageId }: { fid: number; imageId?: string }) {
       {(reason === "other" || reason === "offensive") && (
         <textarea
           className="reportNote"
-          placeholder="Optional: add details…"
+          placeholder={noteRequired ? "Required: add a few details" : "Optional: add details"}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={300}
@@ -126,7 +140,7 @@ function ReportButton({ fid, imageId }: { fid: number; imageId?: string }) {
           type="button"
           className="primaryButton small"
           onClick={submit}
-          disabled={status === "busy"}
+          disabled={status === "busy" || !canSubmit}
         >
           {status === "busy" ? "Sending…" : "Submit report"}
         </button>
@@ -140,4 +154,8 @@ function ReportButton({ fid, imageId }: { fid: number; imageId?: string }) {
       </div>
     </div>
   );
+}
+
+function hideReportedImage(node: HTMLElement | null) {
+  node?.closest(".historyItem")?.classList.add("reportedPending");
 }

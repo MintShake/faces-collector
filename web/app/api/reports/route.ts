@@ -4,6 +4,12 @@ import {
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
+import {
+  addPendingImageReport,
+  getPendingReportMap,
+  reviewPendingImageReport,
+  type ReportReason
+} from "@/lib/social";
 import { rateLimit } from "@/lib/rate-limit";
 
 type ReportBody = {
@@ -11,7 +17,47 @@ type ReportBody = {
   imageId?: string;
   reporterFid?: number;
   reason?: string;
+  note?: string;
+  reporterContext?: string;
 };
+
+type ReviewBody = {
+  imageId?: string;
+  action?: "restore" | "keep_hidden";
+};
+
+const REPORT_REASONS = new Set<ReportReason>(["not_me", "offensive", "outdated", "other", "owner_remove"]);
+
+export async function GET(request: Request) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const images = Object.values(await getPendingReportMap())
+    .sort((a, b) => Date.parse(b.lastReportedAt) - Date.parse(a.lastReportedAt));
+
+  return NextResponse.json({ ok: true, count: images.length, data: images }, {
+    headers: { "Cache-Control": "no-store" }
+  });
+}
+
+export async function PATCH(request: Request) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json().catch(() => undefined) as ReviewBody | undefined;
+  const imageId = sanitizeText(body?.imageId, 180);
+
+  if (!imageId || (body?.action !== "restore" && body?.action !== "keep_hidden")) {
+    return NextResponse.json({ error: "imageId and action are required" }, { status: 400 });
+  }
+
+  const pending = await reviewPendingImageReport({ imageId, action: body.action });
+  return NextResponse.json({ ok: true, pending: pending ?? null }, {
+    headers: { "Cache-Control": "no-store" }
+  });
+}
 
 export async function POST(request: Request) {
   const limited = await rateLimit(request, {
@@ -31,6 +77,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "fid is required" }, { status: 400 });
   }
 
+  const imageId = sanitizeText(body?.imageId, 180);
+  const reason = sanitizeReason(body?.reason);
+  const note = sanitizeText(body?.note, 500);
+
+  if (!reason) {
+    return NextResponse.json({ error: "report reason is required" }, { status: 400 });
+  }
+
+  if (!imageId) {
+    return NextResponse.json({ error: "imageId is required" }, { status: 400 });
+  }
+
+  if (reason === "other" && !note) {
+    return NextResponse.json({ error: "please add a short note for other reports" }, { status: 400 });
+  }
+
   const storage = s3Config();
 
   if (!storage) {
@@ -40,9 +102,11 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   const report = {
     fid,
-    imageId: sanitizeText(body?.imageId, 180),
+    imageId,
     reporterFid: Number.isInteger(body?.reporterFid) ? body?.reporterFid : undefined,
-    reason: sanitizeText(body?.reason, 80) ?? "user_reported",
+    reason,
+    note,
+    reporterContext: sanitizeText(body?.reporterContext, 80),
     createdAt: now
   };
   const key = `social/reports/${fid}/${now.replace(/[:.]/g, "-")}-${crypto.randomUUID()}.json`;
@@ -57,7 +121,9 @@ export async function POST(request: Request) {
     })
   );
 
-  return NextResponse.json({ ok: true });
+  const pending = await addPendingImageReport({ fid, imageId, reason, note });
+
+  return NextResponse.json({ ok: true, hidden: true, pending });
 }
 
 let cachedS3Client: S3Client | undefined;
@@ -114,6 +180,28 @@ function s3Config() {
 
 function sanitizeText(value: unknown, maxLength: number) {
   return typeof value === "string" && value.length > 0
-    ? value.slice(0, maxLength)
+    ? value.trim().slice(0, maxLength) || undefined
     : undefined;
+}
+
+function sanitizeReason(value: unknown): ReportReason | undefined {
+  const reason = sanitizeText(value, 80);
+
+  if (!reason || !REPORT_REASONS.has(reason as ReportReason)) {
+    return undefined;
+  }
+
+  return reason as ReportReason;
+}
+
+function isAdminRequest(request: Request) {
+  const secret = process.env.ADMIN_SECRET ?? process.env.REPORTS_ADMIN_SECRET;
+
+  if (!secret) {
+    return false;
+  }
+
+  const auth = request.headers.get("authorization");
+  const token = request.headers.get("x-admin-secret") ?? auth?.replace(/^Bearer\s+/i, "");
+  return token === secret;
 }

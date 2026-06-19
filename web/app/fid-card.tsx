@@ -10,11 +10,13 @@ export function FidCard({ tile, compact = false }: { tile: FidTile; compact?: bo
   const totalLikes = tile.images.reduce((sum, image) => sum + image.likeCount, 0);
   const badgeIds = tile.badges?.map(b => b.id) ?? [];
   const featuredBadge = tile.badges?.find(b => b.id === topBadge(badgeIds));
+  const name = tile.profile?.displayName ?? tile.profile?.username ?? `FID ${tile.fid}`;
 
   return (
     <article className={compact ? "tile compact" : "tile"}>
       <Link className="tileLink" href={`/fid/${tile.fid}`}>
-        <div className="thumbStack" aria-hidden="true">
+        <div className="thumbStack">
+          <span className="count" title="Pics saved">{tile.imageCount.toLocaleString()}</span>
           {preview.map((image, index) => (
             <SafeImage
               key={image.filename}
@@ -27,8 +29,7 @@ export function FidCard({ tile, compact = false }: { tile: FidTile; compact?: bo
           ))}
         </div>
         <div className="tileMeta">
-          <span className="fid">{tile.profile?.displayName ?? tile.profile?.username ?? `FID ${tile.fid}`}</span>
-          <span className="count" title="Pics saved">{tile.imageCount.toLocaleString()}</span>
+          <span className="fid">{name}</span>
         </div>
         {compact ? (
           <span
@@ -52,7 +53,7 @@ export function FidCard({ tile, compact = false }: { tile: FidTile; compact?: bo
         <span className="tileLikes">{totalLikes.toLocaleString()} likes</span>
       )}
       {tile.images[0] && <LikePanel ownerFid={tile.fid} image={tile.images[0]} compact />}
-      <ShareButton fid={tile.fid} count={tile.imageCount} variant="compact" />
+      <ShareButton fid={tile.fid} count={tile.imageCount} name={name} variant="compact" />
     </article>
   );
 }
