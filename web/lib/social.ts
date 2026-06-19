@@ -96,8 +96,27 @@ type ActivityLog = {
   updatedAt: string;
 };
 
+export type SnapMatchupChoice = "left" | "right";
+
+export type SnapMatchupCandidate = {
+  fid: number;
+  name: string;
+  imageId: string;
+  imageUrl: string;
+};
+
+export type SnapMatchupVoteRecord = {
+  id: string;
+  left: SnapMatchupCandidate;
+  right: SnapMatchupCandidate;
+  votes: Record<string, { fid: number; choice: SnapMatchupChoice; votedAt: string }>;
+  totals: Record<SnapMatchupChoice, number>;
+  updatedAt: string;
+};
+
 const ACTIVITY_LOG_KEY = "social/activity-log.json";
 const ACTIVITY_LOG_MAX = 60;
+const SNAP_MATCHUP_PREFIX = "social/snaps/matchups";
 const MODERATION_QUEUE_KEY = "social/moderation/pending-reports.json";
 const MODERATION_QUEUE_CACHE_TTL_MS = 30_000;
 const STORAGE_READ_TIMEOUT_MS = 1_500;
@@ -144,6 +163,36 @@ export async function getImageLikes(imageId: string) {
 export async function getActivityLog(): Promise<ActivityEvent[]> {
   const log = await safeGetJson<ActivityLog>(ACTIVITY_LOG_KEY);
   return log?.events ?? [];
+}
+
+export async function getSnapMatchupVotes(input: {
+  id: string;
+  left: SnapMatchupCandidate;
+  right: SnapMatchupCandidate;
+}): Promise<SnapMatchupVoteRecord> {
+  return normalizeSnapMatchupRecord(input, await safeGetJson<SnapMatchupVoteRecord>(snapMatchupPath(input.id)));
+}
+
+export async function updateSnapMatchupVote(input: {
+  id: string;
+  left: SnapMatchupCandidate;
+  right: SnapMatchupCandidate;
+  voterFid: number;
+  choice: SnapMatchupChoice;
+}) {
+  const now = new Date().toISOString();
+  const record = normalizeSnapMatchupRecord(input, await safeGetJson<SnapMatchupVoteRecord>(snapMatchupPath(input.id)));
+
+  record.votes[`fid:${input.voterFid}`] = {
+    fid: input.voterFid,
+    choice: input.choice,
+    votedAt: now
+  };
+  record.totals = countSnapMatchupVotes(record.votes);
+  record.updatedAt = now;
+
+  await putJson(snapMatchupPath(input.id), record);
+  return record;
 }
 
 export async function appendActivityEvent(
@@ -569,6 +618,42 @@ function s3Config() {
 
 function likePath(imageId: string) {
   return `social/likes/${imageId}.json`;
+}
+
+function snapMatchupPath(id: string) {
+  return `${SNAP_MATCHUP_PREFIX}/${id}.json`;
+}
+
+function normalizeSnapMatchupRecord(
+  input: {
+    id: string;
+    left: SnapMatchupCandidate;
+    right: SnapMatchupCandidate;
+  },
+  existing: SnapMatchupVoteRecord | undefined
+): SnapMatchupVoteRecord {
+  const votes = existing?.votes ?? {};
+
+  return {
+    id: input.id,
+    left: input.left,
+    right: input.right,
+    votes,
+    totals: countSnapMatchupVotes(votes),
+    updatedAt: existing?.updatedAt ?? new Date().toISOString()
+  };
+}
+
+function countSnapMatchupVotes(
+  votes: SnapMatchupVoteRecord["votes"]
+): Record<SnapMatchupChoice, number> {
+  const totals: Record<SnapMatchupChoice, number> = { left: 0, right: 0 };
+
+  for (const vote of Object.values(votes)) {
+    totals[vote.choice] += 1;
+  }
+
+  return totals;
 }
 
 function userPath(fid: number) {
