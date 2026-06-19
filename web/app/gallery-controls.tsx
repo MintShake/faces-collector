@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FidTile } from "@/lib/pfps";
 import { FidCard } from "./fid-card";
 
 type SortMode = "likes" | "count" | "newest" | "oldest" | "fid";
 type SortDirection = "desc" | "asc";
-const pageSize = 240;
+const pageSize = 50;
 
 type FacesApiResponse = {
   ok: boolean;
@@ -35,6 +35,7 @@ export function GalleryControls({
   const [totalImages, setTotalImages] = useState(initialTotalImages);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string>();
+  const hasUsedInitialTiles = useRef(tiles.length > 0);
 
   useEffect(() => {
     function loadHiddenFids() {
@@ -58,6 +59,11 @@ export function GalleryControls({
   }, []);
 
   useEffect(() => {
+    if (hasUsedInitialTiles.current) {
+      hasUsedInitialTiles.current = false;
+      return;
+    }
+
     const controller = new AbortController();
     const handle = window.setTimeout(() => {
       void fetchTiles(0, true, controller.signal);

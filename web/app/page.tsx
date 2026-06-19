@@ -1,10 +1,24 @@
 import Link from "next/link";
-import { getActivityLog } from "@/lib/social";
+import { getPfpGalleryPage } from "@/lib/pfps";
+import { getActivityLog, getLikeSummaryMap } from "@/lib/social";
 import { ActivityFeed } from "./activity-feed";
 import { HomeData, HeroStack } from "./home-data";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
-  const activityEvents = await getActivityLog().catch(() => []);
+  const [activityEvents, recentPage, topPage, likeSummary] = await Promise.all([
+    getActivityLog().catch(() => []),
+    getPfpGalleryPage({ sort: "newest", limit: 14, imagesPerFid: 1, order: "desc" }).catch(() => ({ tiles: [], totalFids: 0, totalImages: 0 })),
+    getPfpGalleryPage({ sort: "count", limit: 8, imagesPerFid: 5, order: "desc" }).catch(() => ({ tiles: [], totalFids: 0, totalImages: 0 })),
+    getLikeSummaryMap().catch(() => ({}))
+  ]);
+  const heroImages = recentPage.tiles.flatMap((tile) => tile.images[0] ? [tile.images[0]] : []);
+  const stats = {
+    totalFids: recentPage.totalFids || topPage.totalFids,
+    totalImages: recentPage.totalImages || topPage.totalImages,
+    totalLikes: Object.values(likeSummary).reduce((sum, like) => sum + like.count, 0)
+  };
 
   return (
     <main className="shell">
@@ -25,10 +39,10 @@ export default async function Home() {
             <span className="platformSoon">X · soon</span>
           </div>
         </div>
-        <HeroStack />
+        <HeroStack images={heroImages.slice(0, 5)} />
       </section>
 
-      <HomeData />
+      <HomeData stats={stats} recentTiles={recentPage.tiles} topTiles={topPage.tiles} />
 
       <ActivityFeed initial={activityEvents} />
     </main>
