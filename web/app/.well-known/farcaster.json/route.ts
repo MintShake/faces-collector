@@ -19,7 +19,7 @@ export function GET() {
       buttonTitle: "Browse faces",
       splashImageUrl: `${appUrl}/miniapp/splash.png`,
       splashBackgroundColor,
-      subtitle: "PFP eras saved",
+      subtitle: "Profile images saved",
       description: "Browse public profile picture history across the social web.",
       primaryCategory: "social",
       tags: ["farcaster", "pfp", "profiles", "history"],

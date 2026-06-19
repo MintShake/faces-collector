@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AboutModal } from "./about-modal";
+import { FacesBalance } from "./faces-balance";
 import { LiveRefresh } from "./live-refresh";
 import { NavConnect } from "./nav-connect";
 
@@ -14,6 +15,7 @@ export function Nav() {
         <div className="navLinks">
           <AboutModal />
           <Link className="navBrowse" href="/browse">Browse</Link>
+          <FacesBalance />
           <NavConnect />
         </div>
       </div>

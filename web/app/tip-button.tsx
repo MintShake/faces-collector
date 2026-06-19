@@ -361,33 +361,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       const senderWallet = senderAddress ?? await fetchPrimaryWallet(identity.fid).catch(() => undefined);
       if (senderWallet) setSenderAddress(senderWallet);
 
-      let currentBalance = facesBalance;
-      if (senderWallet) {
-        currentBalance = await getFacesBalance(senderWallet);
-        setFacesBalance(currentBalance);
-      }
-
       const txHashes: string[] = [];
-
-      if (currentBalance !== null && currentBalance < rawFacesAmount) {
-        const swapResult = await sdk.actions.swapToken({
-          sellToken: USDC_CAIP19,
-          buyToken: FACES_CAIP19,
-          sellAmount: estimateUsdcSellAmount(amount, tokenPrice),
-        });
-
-        if (!swapResult.success) {
-          throw new Error(swapResult.error?.message ?? "Swap was not completed.");
-        }
-
-        txHashes.push(...swapResult.swap.transactions);
-
-        if (senderWallet) {
-          const refreshed = await getFacesBalance(senderWallet).catch(() => null);
-          if (refreshed !== null) setFacesBalance(refreshed);
-        }
-      }
-
       const sendResult = await sdk.actions.sendToken({
         token: FACES_CAIP19,
         amount: rawFacesAmount.toString(),
@@ -433,6 +407,45 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     }
   }
 
+  async function handleMiniAppBuyFaces() {
+    if (identity?.kind !== "farcaster") {
+      openConnect();
+      return;
+    }
+
+    setStatus("pending");
+    setErrorMsg(undefined);
+
+    try {
+      const swapResult = await sdk.actions.swapToken({
+        sellToken: USDC_CAIP19,
+        buyToken: FACES_CAIP19,
+        sellAmount: estimateUsdcSellAmount(amount, tokenPrice),
+      });
+
+      if (!swapResult.success) {
+        throw new Error(swapResult.error?.message ?? "Swap was not completed.");
+      }
+
+      const senderWallet = senderAddress ?? await fetchPrimaryWallet(identity.fid).catch(() => undefined);
+      if (senderWallet) {
+        setSenderAddress(senderWallet);
+        const refreshed = await getFacesBalance(senderWallet).catch(() => null);
+        if (refreshed !== null) setFacesBalance(refreshed);
+      }
+
+      setStatus("idle");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
+        setStatus("idle");
+      } else {
+        setErrorMsg(msg.length < 120 ? msg : "Could not open the FACES swap. Try buying FACES in your Farcaster wallet.");
+        setStatus("error");
+      }
+    }
+  }
+
   // ── render ────────────────────────────────────────────────────────────────
 
   if (status === "sent") return <span className="tipSent">Tip sent to {recipientName}!</span>;
@@ -449,11 +462,10 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
   const sendLabel = () => {
     if (status === "approving") return "Approving USDC…";
-    if (status === "pending")   return needsToBuy ? "Swapping & tipping…" : "Sending tip…";
-    if (isMiniApp && needsToBuy) return `Swap & tip ${amount.toLocaleString()} FACES`;
+    if (status === "pending")   return isMiniApp ? "Opening wallet…" : needsToBuy ? "Buying & sending…" : "Sending…";
     if (needsToBuy && swapLoading) return "Getting price…";
     if (needsToBuy && !swapQuote && !swapLoading) return "Need more FACES";
-    return `Send ${amount.toLocaleString()} FACES`;
+    return isMiniApp ? `Tip ${amount.toLocaleString()} FACES` : `Send ${amount.toLocaleString()} FACES`;
   };
 
   return (
@@ -548,6 +560,16 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
             </p>
           )}
           <div className="tipActions">
+            {isMiniApp && (
+              <button
+                type="button"
+                className="secondaryButton"
+                onClick={handleMiniAppBuyFaces}
+                disabled={status === "pending" || status === "approving"}
+              >
+                Get FACES
+              </button>
+            )}
             <button
               type="button"
               className="primaryButton"

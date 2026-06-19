@@ -135,6 +135,19 @@ img { display: block; max-width: 100%; }
   border-color: rgba(24, 200, 210, 0.4);
   color: var(--cyan);
 }
+.navFacesBalance {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  max-width: 150px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(111, 45, 255, 0.1);
+  color: var(--purple);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
 .navConnectLoading {
   width: 76px;
   background: var(--line);
@@ -804,6 +817,7 @@ h1 {
 
 /* ─── Buttons ─── */
 .primaryButton,
+.secondaryButton,
 .shareButton,
 .textButton,
 .backLink,
@@ -828,6 +842,18 @@ h1 {
 }
 .primaryButton:hover {
   opacity: 0.86;
+  transform: translateY(-1px);
+}
+.secondaryButton {
+  height: 48px;
+  padding: 0 18px;
+  border: 1px solid rgba(111, 45, 255, 0.24);
+  background: rgba(111, 45, 255, 0.1);
+  color: var(--purple);
+  font-size: 15px;
+}
+.secondaryButton:hover {
+  background: rgba(111, 45, 255, 0.16);
   transform: translateY(-1px);
 }
 .shareButton,
