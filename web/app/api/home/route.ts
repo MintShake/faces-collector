@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPfpGalleryPage, getPfpStats } from "@/lib/pfps";
+import { getPfpGalleryPage } from "@/lib/pfps";
 import { corsHeaders, logApiRequest, publicApiHeaders } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -18,11 +18,15 @@ export async function GET(request: Request) {
     return limited;
   }
 
-  const [stats, recentPage, topPage] = await Promise.all([
-    getPfpStats(),
+  const [recentPage, topPage] = await Promise.all([
     getPfpGalleryPage({ sort: "newest", limit: 14, imagesPerFid: 1, order: "desc", includeProfiles: false }),
     getPfpGalleryPage({ sort: "count", limit: 8, imagesPerFid: 5, order: "desc", includeProfiles: false })
   ]);
+  const stats = {
+    totalFids: recentPage.totalFids || topPage.totalFids,
+    totalImages: recentPage.totalImages || topPage.totalImages,
+    totalLikes: 0
+  };
   const recentChanges = recentPage.tiles
     .map((tile) => ({ fid: tile.fid, profile: tile.profile, image: tile.images[0] }))
     .filter((item) => Boolean(item.image));
