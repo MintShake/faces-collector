@@ -1,6 +1,7 @@
 import {
   GetObjectCommand,
   ListObjectsV2Command,
+  PutObjectCommand,
   S3Client,
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
@@ -151,11 +152,14 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
       return v;
     };
 
-    if (!text) return cache(undefined);
+    if (!text) {
+      // No profile file yet — fetch name from Neynar/Warpcast and store it.
+      void fetchAndStoreProfile(fid, s3, undefined);
+      return cache(undefined);
+    }
 
     const profile = JSON.parse(text) as FidProfile;
-
-    return cache({
+    const result: FidProfile = {
       fid,
       username: profile.username,
       displayName: profile.displayName,
@@ -172,17 +176,90 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
       verifications: profile.verifications,
       farcasterScore: profile.farcasterScore,
       neynarEnrichedAt: profile.neynarEnrichedAt
-    });
+    };
+
+    // If name is missing, enrich in the background and update storage.
+    if (!result.username && !result.displayName) {
+      void fetchAndStoreProfile(fid, s3, result);
+    }
+
+    return cache(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown profile read error";
 
     if (message.includes("NoSuchKey") || message.includes("404")) {
       profileCache.set(fid, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, value: undefined });
+      // Fire-and-forget: fetch name and create the profile file.
+      void fetchAndStoreProfile(fid, s3Config()!, undefined);
       return undefined;
     }
 
     console.warn(`Could not read profile for fid ${fid}: ${message}`);
     return undefined;
+  }
+}
+
+async function fetchAndStoreProfile(
+  fid: number,
+  s3: NonNullable<ReturnType<typeof s3Config>>,
+  existing: FidProfile | undefined
+) {
+  try {
+    let username: string | undefined;
+    let displayName: string | undefined;
+    let pfpUrl: string | undefined;
+
+    const neynarKey = process.env.NEYNAR_API_KEY;
+    if (neynarKey) {
+      const res = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+        { headers: { accept: "application/json", "x-api-key": neynarKey } }
+      );
+      if (res.ok) {
+        const data = await res.json() as { users?: Array<{ username?: string; display_name?: string; pfp_url?: string }> };
+        const u = data.users?.[0];
+        username    = u?.username;
+        displayName = u?.display_name;
+        pfpUrl      = u?.pfp_url;
+      }
+    }
+
+    // Fallback: Warpcast public API (no key needed).
+    if (!username && !displayName) {
+      const res = await fetch(`https://api.warpcast.com/v2/user?fid=${fid}`);
+      if (res.ok) {
+        const data = await res.json() as { result?: { user?: { username?: string; displayName?: string; pfp?: { url?: string } } } };
+        const u = data.result?.user;
+        username    = u?.username;
+        displayName = u?.displayName;
+        pfpUrl      = u?.pfp?.url;
+      }
+    }
+
+    if (!username && !displayName) return;
+
+    const merged = {
+      ...(existing ?? {}),
+      fid,
+      username:    username    ?? existing?.username,
+      displayName: displayName ?? existing?.displayName,
+      pfpUrl:      pfpUrl      ?? existing?.pfpUrl,
+    };
+
+    await s3.client.send(new PutObjectCommand({
+      Bucket: s3.bucket,
+      Key: `state/fids/${fid}.json`,
+      Body: JSON.stringify(merged),
+      ContentType: "application/json",
+    }));
+
+    // Update in-memory cache so next read within this instance is warm.
+    profileCache.set(fid, {
+      expiresAt: Date.now() + PROFILE_CACHE_TTL_MS,
+      value: merged as FidProfile,
+    });
+  } catch {
+    // Non-critical — silently ignore enrichment failures.
   }
 }
 
