@@ -1423,11 +1423,22 @@ h1 {
   color: var(--rose);
   font-weight: 600;
 }
+.tipCostHint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
 .tipActions {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-top: 4px;
+}
+.tipActions .primaryButton {
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .tipBalances {

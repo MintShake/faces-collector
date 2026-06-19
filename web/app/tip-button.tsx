@@ -288,7 +288,6 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     if (status === "pending")   return needsToBuy ? "Buying & sending…" : "Sending…";
     if (needsToBuy && swapLoading) return "Getting price…";
     if (needsToBuy && !swapQuote && !swapLoading) return "No liquidity pool yet";
-    if (needsToBuy && costHint) return `Send ${amount.toLocaleString()} FACES · ${costHint}`;
     return `Send ${amount.toLocaleString()} FACES`;
   };
 
@@ -375,21 +374,26 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       {errorMsg && <p className="tipError">{errorMsg}</p>}
 
       {!loading && (
-        <div className="tipActions">
-          <button
-            type="button"
-            className="primaryButton"
-            onClick={handleSend}
-            disabled={status === "pending" || status === "approving" || swapLoading || (needsToBuy && !swapQuote && !swapLoading)}
-          >
-            {sendLabel()}
-          </button>
-          <button type="button" className="textButton"
-            onClick={() => { setOpen(false); setStatus("idle"); setErrorMsg(undefined); }}
-          >
-            Cancel
-          </button>
-        </div>
+        <>
+          {needsToBuy && costHint && (
+            <p className="tipCostHint">Estimated purchase: {costHint}</p>
+          )}
+          <div className="tipActions">
+            <button
+              type="button"
+              className="primaryButton"
+              onClick={handleSend}
+              disabled={status === "pending" || status === "approving" || swapLoading || (needsToBuy && !swapQuote && !swapLoading)}
+            >
+              {sendLabel()}
+            </button>
+            <button type="button" className="textButton"
+              onClick={() => { setOpen(false); setStatus("idle"); setErrorMsg(undefined); }}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
