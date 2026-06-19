@@ -600,6 +600,7 @@ h1 {
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   padding-top: 4px;
+  align-items: stretch;
 }
 
 /* ─── Tile card ─── */
@@ -640,14 +641,41 @@ h1 {
 .tileGrid .tile:nth-child(5n)  { animation-delay: 120ms; }
 
 .tile.compact {
+  grid-template-rows: auto 14px 38px 38px;
   padding: 8px;
   gap: 6px;
   border-radius: 14px;
+  height: 100%;
 }
 .tile.compact .fid { font-size: 12px; }
 .tile.compact .count { font-size: 11px; }
 .tile.compact .tileBadge { font-size: 10px; padding: 2px 6px; }
 .tile.compact .tileLikes { font-size: 11px; }
+.tile.compact .tileLink {
+  grid-template-rows: auto 28px 22px;
+  gap: 7px;
+}
+.tile.compact .thumbStack {
+  aspect-ratio: 1;
+}
+.tile.compact .tileMeta {
+  min-height: 28px;
+}
+.tile.compact .tileBadge {
+  min-height: 22px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tile.compact .tileBadge.empty,
+.tile.compact .tileLikes.empty {
+  visibility: hidden;
+}
+.tile.compact .tileLikes {
+  min-height: 14px;
+  line-height: 14px;
+}
 
 .tileLink {
   position: relative;
@@ -822,6 +850,33 @@ h1 {
   margin-top: 4px;
 }
 .likePanel.compact { margin-top: 0; }
+.tile.compact .likePanel.compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  overflow: hidden;
+}
+.tile.compact .likePanel.compact .likeButton {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tile.compact .likePanel.compact .likeCount {
+  min-width: 0;
+  font-size: 11px;
+}
+.tile.compact .likePanel.compact .likedBy {
+  display: none;
+}
+.tile.compact .shareWrap {
+  width: 100%;
+  min-width: 0;
+}
 .likeCount {
   font-size: 13px;
   font-weight: 700;

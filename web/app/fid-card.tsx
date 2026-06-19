@@ -30,13 +30,27 @@ export function FidCard({ tile, compact = false }: { tile: FidTile; compact?: bo
           <span className="fid">{tile.profile?.displayName ?? tile.profile?.username ?? `FID ${tile.fid}`}</span>
           <span className="count" title="Pics saved">{tile.imageCount.toLocaleString()}</span>
         </div>
-        {featuredBadge && (
+        {compact ? (
+          <span
+            className={featuredBadge ? "tileBadge" : "tileBadge empty"}
+            title={featuredBadge ? BADGE_DEFS[featuredBadge.id]?.desc : undefined}
+            aria-hidden={featuredBadge ? undefined : true}
+          >
+            {featuredBadge?.label ?? "\u00a0"}
+          </span>
+        ) : featuredBadge && (
           <span className="tileBadge" title={BADGE_DEFS[featuredBadge.id]?.desc}>
             {featuredBadge.label}
           </span>
         )}
       </Link>
-      {totalLikes > 0 && <span className="tileLikes">{totalLikes.toLocaleString()} likes</span>}
+      {compact ? (
+        <span className={totalLikes > 0 ? "tileLikes" : "tileLikes empty"} aria-hidden={totalLikes > 0 ? undefined : true}>
+          {totalLikes > 0 ? `${totalLikes.toLocaleString()} likes` : "\u00a0"}
+        </span>
+      ) : totalLikes > 0 && (
+        <span className="tileLikes">{totalLikes.toLocaleString()} likes</span>
+      )}
       {tile.images[0] && <LikePanel ownerFid={tile.fid} image={tile.images[0]} compact />}
       <ShareButton fid={tile.fid} count={tile.imageCount} variant="compact" />
     </article>
