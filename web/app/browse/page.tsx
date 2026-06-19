@@ -2,11 +2,13 @@ import Link from "next/link";
 import { GalleryControls } from "../gallery-controls";
 import { getPfpGallery, getPfpStats } from "@/lib/pfps";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function BrowsePage() {
+  // Skip expensive tile listing at build time — GalleryControls fetches from API on mount.
+  const isBuild = process.env.NEXT_PHASE === "phase-production-build";
   const [tiles, stats] = await Promise.all([
-    getPfpGallery({ limit: 240, imagesPerFid: 5 }),
+    isBuild ? Promise.resolve([]) : getPfpGallery({ limit: 240, imagesPerFid: 5 }),
     getPfpStats()
   ]);
 

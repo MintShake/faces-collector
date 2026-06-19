@@ -6,9 +6,16 @@ import { ActivityFeed } from "./activity-feed";
 import { FidCard } from "./fid-card";
 import { SafeImage } from "./safe-image";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function Home() {
+  const isBuild = process.env.NEXT_PHASE === "phase-production-build";
+
+  // Skip expensive blob listing at build time — ISR populates on first request.
+  if (isBuild) {
+    return <main className="shell"><p style={{ padding: "2rem" }}>Loading…</p></main>;
+  }
+
   // Run gallery first so blob list is cached before the second call.
   const tilesRaw = await getPfpGallery({ limit: 240, imagesPerFid: 5, sort: "newest" });
   const [topTilesRaw, stats, activityEvents] = await Promise.all([

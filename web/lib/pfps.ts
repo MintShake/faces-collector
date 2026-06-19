@@ -441,12 +441,11 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     })
   );
 
-  // Bulk-enrich tiles missing a name — skip during build to avoid OOM / socket exhaustion.
+  // Bulk-enrich tiles missing a name — only for tiles on this page, skip during build.
   const isBuilding = process.env.NEXT_PHASE === "phase-production-build";
   if (!isBuilding) {
     const unnamed = withProfiles
-      .filter((t) => !t.profile?.username && !t.profile?.displayName)
-      .slice(0, 30); // cap per request to avoid overwhelming S3/Neynar
+      .filter((t) => !t.profile?.username && !t.profile?.displayName);
     if (unnamed.length > 0) {
       await bulkEnrichProfiles(unnamed.map((t) => t.fid));
       for (const tile of withProfiles) {
