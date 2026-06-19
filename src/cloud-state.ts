@@ -85,11 +85,11 @@ export async function enrichCloudProfilesWithNeynar(
           firstSeenAt: existing?.firstSeenAt ?? enrichedAt,
           lastSeenAt: existing?.lastSeenAt ?? enrichedAt,
           lastProfileFetchedAt: existing?.lastProfileFetchedAt,
-          pfpUrl: existing?.pfpUrl,
+          pfpUrl: user.pfp_url ?? existing?.pfpUrl,
           pfpSha256: existing?.pfpSha256,
-          username: existing?.username,
-          displayName: existing?.displayName,
-          bio: existing?.bio,
+          username: user.username ?? existing?.username,
+          displayName: user.display_name ?? existing?.displayName,
+          bio: user.profile?.bio?.text ?? existing?.bio,
           profileUrl: existing?.profileUrl,
           blob: existing?.blob,
           updatedAt: enrichedAt,
@@ -150,6 +150,12 @@ export async function markCloudProfileFetched(fid: number, fetchedAt = new Date(
     bio: existing?.bio,
     profileUrl: existing?.profileUrl,
     blob: existing?.blob,
+    followerCount: existing?.followerCount,
+    neynarScore: existing?.neynarScore,
+    powerBadge: existing?.powerBadge,
+    verifications: existing?.verifications,
+    farcasterScore: existing?.farcasterScore,
+    neynarEnrichedAt: existing?.neynarEnrichedAt,
     updatedAt: fetchedAt
   });
 }
@@ -176,6 +182,12 @@ export async function updateCloudProfileMetadata(input: {
     bio: input.bio ?? existing?.bio,
     profileUrl: input.profileUrl ?? existing?.profileUrl,
     blob: existing?.blob,
+    followerCount: existing?.followerCount,
+    neynarScore: existing?.neynarScore,
+    powerBadge: existing?.powerBadge,
+    verifications: existing?.verifications,
+    farcasterScore: existing?.farcasterScore,
+    neynarEnrichedAt: existing?.neynarEnrichedAt,
     updatedAt: new Date().toISOString()
   });
 }
@@ -203,6 +215,12 @@ export async function updateCloudPfp(input: {
     bio: existing?.bio,
     profileUrl: existing?.profileUrl,
     blob: input.blob,
+    followerCount: existing?.followerCount,
+    neynarScore: existing?.neynarScore,
+    powerBadge: existing?.powerBadge,
+    verifications: existing?.verifications,
+    farcasterScore: existing?.farcasterScore,
+    neynarEnrichedAt: existing?.neynarEnrichedAt,
     updatedAt
   });
 }

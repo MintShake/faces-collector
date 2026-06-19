@@ -1,4 +1,5 @@
 import { getJsonFromBlob, putJsonToBlob } from "./blob-storage.js";
+import { getCloudProfile } from "./cloud-state.js";
 import type { PfpChange } from "./pfp-history.js";
 
 export const GALLERY_INDEX_PATH = "state/index/gallery.json";
@@ -18,7 +19,20 @@ export type GalleryIndexEntry = {
   imageCount: number;
   newestAt: string;
   oldestAt: string;
+  profile?: GalleryIndexProfile;
   images: GalleryIndexImage[];
+};
+
+export type GalleryIndexProfile = {
+  fid: number;
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  bio?: string;
+  profileUrl?: string;
+  firstSeenAt?: string;
+  lastSeenAt?: string;
+  updatedAt?: string;
 };
 
 export type GalleryIndex = {
@@ -53,6 +67,7 @@ export async function updateGalleryIndexFromPfpChange(change: PfpChange): Promis
     imageCount: images.length,
     newestAt: images[0]?.storedAt ?? change.storedAt,
     oldestAt: images.at(-1)?.storedAt ?? change.storedAt,
+    profile: await profileForIndex(change.fid),
     images
   };
 
@@ -66,6 +81,26 @@ export async function updateGalleryIndexFromPfpChange(change: PfpChange): Promis
     totalImages: entries.reduce((sum, entry) => sum + entry.imageCount, 0),
     entries
   } satisfies GalleryIndex);
+}
+
+async function profileForIndex(fid: number): Promise<GalleryIndexProfile | undefined> {
+  const profile = await getCloudProfile(fid).catch(() => undefined);
+
+  if (!profile) {
+    return undefined;
+  }
+
+  return {
+    fid,
+    username: profile.username,
+    displayName: profile.displayName,
+    pfpUrl: profile.pfpUrl,
+    bio: profile.bio,
+    profileUrl: profile.profileUrl,
+    firstSeenAt: profile.firstSeenAt,
+    lastSeenAt: profile.lastSeenAt,
+    updatedAt: profile.updatedAt
+  };
 }
 
 function imageFromChange(change: PfpChange): GalleryIndexImage | undefined {

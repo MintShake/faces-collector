@@ -104,6 +104,7 @@ type GalleryIndexEntry = {
   imageCount: number;
   newestAt: string;
   oldestAt: string;
+  profile?: FidProfile;
   images: GalleryIndexImage[];
 };
 
@@ -243,11 +244,12 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
 
 async function bulkEnrichProfiles(fids: number[]) {
   const s3 = s3Config();
-  if (!s3) return;
+  if (!s3) return new Map<number, FidProfile>();
 
   const neynarKey = process.env.NEYNAR_API_KEY;
   type NeynarUser = { fid: number; username?: string; display_name?: string; pfp_url?: string };
   const enriched = new Map<number, { username?: string; displayName?: string; pfpUrl?: string }>();
+  const profiles = new Map<number, FidProfile>();
 
   // Neynar bulk endpoint — up to 100 FIDs per call.
   if (neynarKey) {
@@ -256,7 +258,10 @@ async function bulkEnrichProfiles(fids: number[]) {
       try {
         const res = await fetch(
           `https://api.neynar.com/v2/farcaster/user/bulk?fids=${batch.join(",")}`,
-          { headers: { accept: "application/json", "x-api-key": neynarKey } }
+          {
+            headers: { accept: "application/json", "x-api-key": neynarKey },
+            signal: AbortSignal.timeout(1_800)
+          }
         );
         if (res.ok) {
           const data = await res.json() as { users?: NeynarUser[] };
@@ -286,8 +291,11 @@ async function bulkEnrichProfiles(fids: number[]) {
         ContentType: "application/json",
       }));
       profileCache.set(fid, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, value: merged });
+      profiles.set(fid, merged);
     } catch { /* ignore */ }
   }));
+
+  return profiles;
 }
 
 export async function getRecentPfpImages(limit = 50) {
@@ -569,8 +577,6 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     })
   );
 
-  // Bulk-enrich tiles missing a name — only for tiles on this page, skip during build.
-  const isBuilding = process.env.NEXT_PHASE === "phase-production-build";
   return {
     tiles: withProfiles,
     totalFids,
@@ -601,6 +607,7 @@ async function getIndexedPfpGallery(options: GalleryOptions = {}): Promise<PfpGa
 
       return {
         fid: entry.fid,
+        profile: entry.profile,
         imageCount: images.length,
         images: options.imagesPerFid ? images.slice(0, options.imagesPerFid) : images,
         badges: badges.length > 0 ? badges : undefined
@@ -642,6 +649,26 @@ async function getIndexedPfpGallery(options: GalleryOptions = {}): Promise<PfpGa
           return profile ? { ...tile, profile } : (tile as FidTile);
         })
       );
+
+  const shouldEnrichMissingNames =
+    options.includeProfiles !== false &&
+    process.env.NEXT_PHASE !== "phase-production-build" &&
+    withProfiles.some((tile) => !tile.profile?.username && !tile.profile?.displayName);
+
+  if (shouldEnrichMissingNames) {
+    const enriched = await bulkEnrichProfiles(
+      withProfiles
+        .filter((tile) => !tile.profile?.username && !tile.profile?.displayName)
+        .map((tile) => tile.fid)
+    );
+
+    for (const tile of withProfiles) {
+      const profile = enriched.get(tile.fid);
+      if (profile) {
+        tile.profile = profile;
+      }
+    }
+  }
 
   return {
     tiles: withProfiles,

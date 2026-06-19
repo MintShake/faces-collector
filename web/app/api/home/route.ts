@@ -19,8 +19,8 @@ export async function GET(request: Request) {
   }
 
   const [recentPage, topPage] = await Promise.all([
-    getPfpGalleryPage({ sort: "newest", limit: 14, imagesPerFid: 1, order: "desc", includeProfiles: false }),
-    getPfpGalleryPage({ sort: "count", limit: 8, imagesPerFid: 5, order: "desc", includeProfiles: false })
+    getPfpGalleryPage({ sort: "newest", limit: 14, imagesPerFid: 1, order: "desc" }),
+    getPfpGalleryPage({ sort: "count", limit: 8, imagesPerFid: 5, order: "desc" })
   ]);
   const stats = {
     totalFids: recentPage.totalFids || topPage.totalFids,

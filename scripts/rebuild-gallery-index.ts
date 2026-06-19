@@ -5,8 +5,8 @@ import {
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
 import { list } from "@vercel/blob";
-import { GALLERY_INDEX_PATH, type GalleryIndex, type GalleryIndexImage } from "../src/gallery-index.js";
-import { putJsonToBlob } from "../src/blob-storage.js";
+import { GALLERY_INDEX_PATH, type GalleryIndex, type GalleryIndexImage, type GalleryIndexProfile } from "../src/gallery-index.js";
+import { getJsonFromBlob, putJsonToBlob } from "../src/blob-storage.js";
 
 type ListedObject = {
   pathname: string;
@@ -49,6 +49,7 @@ for (const object of objects) {
   byFid.set(fid, fidImages);
 }
 
+const profiles = await loadProfileSummaries([...byFid.keys()]);
 const entries = [...byFid.entries()]
   .map(([fid, imagesByBase]) => {
     const images = [...imagesByBase.values()]
@@ -60,6 +61,7 @@ const entries = [...byFid.entries()]
       imageCount: images.length,
       newestAt: images[0]?.storedAt ?? new Date(0).toISOString(),
       oldestAt: images.at(-1)?.storedAt ?? new Date(0).toISOString(),
+      profile: profiles.get(fid),
       images
     };
   })
@@ -76,6 +78,46 @@ const index: GalleryIndex = {
 
 await putJsonToBlob(GALLERY_INDEX_PATH, index);
 console.log(`Wrote ${GALLERY_INDEX_PATH}: ${index.totalFids} fids, ${index.totalImages} images`);
+
+async function loadProfileSummaries(fids: number[]) {
+  const summaries = new Map<number, GalleryIndexProfile>();
+  const batchSize = 25;
+
+  for (let i = 0; i < fids.length; i += batchSize) {
+    const batch = fids.slice(i, i + batchSize);
+
+    await Promise.all(batch.map(async (fid) => {
+      const profile = await getJsonFromBlob<GalleryIndexProfile & {
+        profileUrl?: string;
+        firstSeenAt?: string;
+        lastSeenAt?: string;
+        updatedAt?: string;
+      }>(`state/fids/${fid}.json`).catch(() => undefined);
+
+      if (!profile) {
+        return;
+      }
+
+      summaries.set(fid, {
+        fid,
+        username: profile.username,
+        displayName: profile.displayName,
+        pfpUrl: profile.pfpUrl,
+        bio: profile.bio,
+        profileUrl: profile.profileUrl,
+        firstSeenAt: profile.firstSeenAt,
+        lastSeenAt: profile.lastSeenAt,
+        updatedAt: profile.updatedAt
+      });
+    }));
+
+    if (i > 0 && i % 2500 === 0) {
+      console.log(`Loaded ${i.toLocaleString()} profile summaries...`);
+    }
+  }
+
+  return summaries;
+}
 
 async function listAllObjects(prefix: string): Promise<ListedObject[]> {
   const s3 = s3Config();

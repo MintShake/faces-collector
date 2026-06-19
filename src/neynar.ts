@@ -2,6 +2,14 @@ import { config } from "./config.js";
 
 export type NeynarBulkUser = {
   fid: number;
+  username?: string;
+  display_name?: string;
+  pfp_url?: string;
+  profile?: {
+    bio?: {
+      text?: string;
+    };
+  };
   follower_count: number;
   score: number;
   power_badge: boolean;

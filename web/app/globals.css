@@ -98,6 +98,25 @@ img { display: block; max-width: 100%; }
   transition: opacity 160ms ease;
 }
 .navBrowse:hover { opacity: 0.82; }
+.navAbout {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
+}
+.navAbout:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--ink);
+}
 .navConnect {
   display: inline-flex;
   align-items: center;
@@ -1716,6 +1735,7 @@ h1 {
 .shareMenu button:hover { background: var(--bg); }
 
 /* ─── Connect modal ─── */
+.aboutOverlay,
 .connectOverlay {
   position: fixed;
   inset: 0;
@@ -1727,6 +1747,49 @@ h1 {
   background: rgba(7, 18, 31, 0.55);
   backdrop-filter: blur(4px);
   animation: fadeUp 160ms ease both;
+}
+.aboutModal {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  padding: 26px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.aboutModal h2 {
+  margin: 0 36px 12px 0;
+  font-size: 24px;
+  font-weight: 850;
+}
+.aboutModal p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.aboutModal p:last-child {
+  margin-bottom: 0;
+}
+.modalClose {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.modalClose:hover {
+  border-color: rgba(99, 58, 255, 0.35);
 }
 .connectModal {
   width: 100%;
