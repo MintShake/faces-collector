@@ -11,9 +11,50 @@ export const revalidate = 60;
 export default async function Home() {
   const isBuild = process.env.NEXT_PHASE === "phase-production-build";
 
-  // Skip expensive blob listing at build time — ISR populates on first request.
+  // During build: render shell without expensive blob listing; ISR revalidates on first request.
   if (isBuild) {
-    return <main className="shell"><p style={{ padding: "2rem" }}>Loading…</p></main>;
+    const activityEvents = await getActivityLog().catch(() => []);
+    return (
+      <main className="shell">
+        <section className="miniHero">
+          <div className="heroCopy">
+            <span className="appMark">Faces</span>
+            <h1>Every version of you, saved.</h1>
+            <p>Profile picture history across the social web.</p>
+            <div className="heroActions">
+              <Link className="primaryButton" href="/browse">Browse all faces</Link>
+            </div>
+            <div className="memoryRibbon">
+              <span className="platformActive">Farcaster</span>
+              <span className="platformSoon">Bluesky · soon</span>
+              <span className="platformSoon">Lens · soon</span>
+              <span className="platformSoon">X · soon</span>
+            </div>
+          </div>
+          <div className="heroStack" aria-hidden="true" />
+        </section>
+        <ActivityFeed initial={activityEvents} />
+        <section className="homeInfoRow">
+          <div className="infoCard tokenInfoCard">
+            <span className="eyebrow">Token · Base</span>
+            <h3>Faces Token</h3>
+            <p>Hold it, earn it, tip it. More utility coming.</p>
+            <code className="tokenAddressCompact">{TOKEN_ADDRESS}</code>
+            <div className="infoCardLinks">
+              <a href={`https://basescan.org/token/${TOKEN_ADDRESS}`} target="_blank" rel="noreferrer">BaseScan</a>
+              <a href={`https://dexscreener.com/base/${TOKEN_ADDRESS}`} target="_blank" rel="noreferrer">DexScreener</a>
+              <a href={`https://app.uniswap.org/explore/tokens/base/${TOKEN_ADDRESS}`} target="_blank" rel="noreferrer" className="infoCardPrimary">Trade</a>
+            </div>
+          </div>
+          <a href="https://shakezzlab.xyz" target="_blank" rel="noreferrer" className="infoCard apiInfoCard">
+            <span className="eyebrow">Open API</span>
+            <h3>Faces Data API</h3>
+            <p>Free, public, CORS-enabled. Profile pic history for every FID. No key needed.</p>
+            <span className="infoCardCta">shakezzlab.xyz →</span>
+          </a>
+        </section>
+      </main>
+    );
   }
 
   // Run gallery first so blob list is cached before the second call.
