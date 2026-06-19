@@ -1,30 +1,10 @@
 import Link from "next/link";
-import type { FidTile } from "@/lib/pfps";
-import { getPfpGallery, getPfpStats } from "@/lib/pfps";
 import { getActivityLog } from "@/lib/social";
 import { ActivityFeed } from "./activity-feed";
-import { FidCard } from "./fid-card";
-import { SafeImage } from "./safe-image";
-
-export const dynamic = "force-dynamic";
+import { HomeData, HeroStack } from "./home-data";
 
 export default async function Home() {
-  // Run gallery first so blob list is cached before subsequent calls hit it.
-  const tilesRaw = await getPfpGallery({ limit: 240, imagesPerFid: 5, sort: "newest" });
-  const [topTilesRaw, stats, activityEvents] = await Promise.all([
-    getPfpGallery({ limit: 8, imagesPerFid: 5, sort: "count" }),
-    getPfpStats(),
-    getActivityLog(),
-  ]);
-  const tiles = tilesRaw as FidTile[];
-  const topTiles = topTilesRaw as FidTile[];
-
-  const recentChanges = tiles
-    .flatMap((t) => t.images.map((img) => ({ fid: t.fid, profile: t.profile, image: img })))
-    .sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt))
-    .slice(0, 14);
-
-  const heroImages = recentChanges.slice(0, 5).map((c) => c.image);
+  const activityEvents = await getActivityLog().catch(() => []);
 
   return (
     <main className="shell">
@@ -32,11 +12,7 @@ export default async function Home() {
         <div className="heroCopy">
           <span className="appMark">Faces</span>
           <h1>Every version of you, saved.</h1>
-          <p>
-            Profile picture history across the social web.{" "}
-            {stats.totalFids.toLocaleString()} people and{" "}
-            {stats.totalImages.toLocaleString()} moments — and counting.
-          </p>
+          <p>Profile picture history across the social web.</p>
           <div className="heroActions">
             <Link className="primaryButton" href="/browse">
               Browse all faces
@@ -49,60 +25,10 @@ export default async function Home() {
             <span className="platformSoon">X · soon</span>
           </div>
         </div>
-        <div className="heroStack" aria-hidden="true">
-          {heroImages.map((img, i) => (
-            <SafeImage
-              key={img.id}
-              src={img.thumbUrl ?? img.url}
-              alt=""
-              style={{ "--i": i } as React.CSSProperties}
-            />
-          ))}
-        </div>
+        <HeroStack />
       </section>
 
-      <div className="statsStrip">
-        <div>
-          <span>{stats.totalFids.toLocaleString()}</span>
-          <p>profiles tracked</p>
-        </div>
-        <div>
-          <span>{stats.totalImages.toLocaleString()}</span>
-          <p>profile pics saved</p>
-        </div>
-        <div>
-          <span>{stats.totalLikes.toLocaleString()}</span>
-          <p>community likes</p>
-        </div>
-      </div>
-
-      <section className="homeSection">
-        <div className="sectionHeading">
-          <h2>Latest changes</h2>
-          <Link className="textButton" href="/browse">See all</Link>
-        </div>
-        <div className="changeRail">
-          {recentChanges.map(({ fid, profile, image }) => (
-            <Link key={image.id} className="changeCard" href={`/fid/${fid}`}>
-              <SafeImage src={image.thumbUrl ?? image.url} alt="" loading="lazy" decoding="async" />
-              <strong>{profile?.displayName ?? profile?.username ?? `FID ${fid}`}</strong>
-              <span>{formatDate(image.storedAt)}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="homeSection">
-        <div className="sectionHeading">
-          <h2>Most eras</h2>
-          <Link className="textButton" href="/browse">Browse all</Link>
-        </div>
-        <div className="tileGrid">
-          {topTiles.map((tile) => (
-            <FidCard key={tile.fid} tile={tile} compact />
-          ))}
-        </div>
-      </section>
+      <HomeData />
 
       <ActivityFeed initial={activityEvents} />
 
@@ -131,12 +57,3 @@ export default async function Home() {
 }
 
 const TOKEN_ADDRESS = "0xa199Ab829b992FD357E40F1E91be724D7273aa82";
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
