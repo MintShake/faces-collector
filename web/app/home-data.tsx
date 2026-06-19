@@ -100,7 +100,7 @@ export function HomeData() {
       {topTiles.length > 0 && (
         <section className="homeSection">
           <div className="sectionHeading">
-            <h2>Most eras</h2>
+            <h2>Most profile images</h2>
             <Link className="textButton" href="/browse">Browse all</Link>
           </div>
           <div className="tileGrid">

@@ -1993,7 +1993,7 @@ h1 {
     transform: rotate(4deg);
   }
   .heroStack::after {
-    content: "Profile eras";
+    content: "Profile images";
     position: absolute;
     right: 20px;
     bottom: 36px;

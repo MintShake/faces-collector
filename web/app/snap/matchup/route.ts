@@ -169,7 +169,7 @@ function renderMatchupSnap(input: {
         },
         title: {
           type: "text",
-          props: { content: "Which PFP era wins?", weight: "bold", align: "center" }
+          props: { content: "Which profile image wins?", weight: "bold", align: "center" }
         },
         notice: {
           type: "badge",
@@ -206,7 +206,20 @@ function renderMatchupSnap(input: {
         actions: {
           type: "stack",
           props: { direction: "horizontal", gap: "sm" },
-          children: ["next", "open"]
+          children: ["share", "next", "open"]
+        },
+        share: {
+          type: "button",
+          props: { label: "Share", icon: "share" },
+          on: {
+            press: {
+              action: "compose_cast",
+              params: {
+                text: `Which profile image wins: ${input.matchup.left.name} or ${input.matchup.right.name}?`,
+                embeds: [input.snapUrl]
+              }
+            }
+          }
         },
         next: {
           type: "button",

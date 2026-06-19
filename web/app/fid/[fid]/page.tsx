@@ -86,7 +86,7 @@ export default async function FidPage({
       <section className="wrappedPanel" aria-label={`Timeline summary for FID ${tile.fid}`}>
         <div>
           <span className="eyebrow">Timeline summary</span>
-          <h2>{tile.images.length.toLocaleString()} eras</h2>
+          <h2>{tile.images.length.toLocaleString()} profile images</h2>
           <p>From {formatShortDate(tile.images.at(-1)?.storedAt ?? tile.images[0].storedAt)} to {formatShortDate(tile.images[0].storedAt)}.</p>
         </div>
         <div className="wrappedStats">
