@@ -169,6 +169,9 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
   const usdcReadable  = usdcBalance  !== null ? Number(usdcBalance  / 10n ** 4n)  / 100 : null;
   const usdFor = (n: number) => tokenPrice ? `≈ $${(n * tokenPrice).toFixed(2)}` : null;
   const canUseUsdc = usdcBalance !== null && usdcBalance > 0n;
+  const missingFaces = needsToBuy && facesReadable !== null
+    ? Math.max(0, amount - facesReadable)
+    : 0;
 
   const costHint = swapQuote?.inputToken === "usdc" && swapQuote.usdcToSpend
     ? `~${swapQuote.usdcToSpend} USDC`
@@ -287,7 +290,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     if (status === "approving") return "Approving USDC…";
     if (status === "pending")   return needsToBuy ? "Buying & sending…" : "Sending…";
     if (needsToBuy && swapLoading) return "Getting price…";
-    if (needsToBuy && !swapQuote && !swapLoading) return "No liquidity pool yet";
+    if (needsToBuy && !swapQuote && !swapLoading) return "Need more FACES";
     return `Send ${amount.toLocaleString()} FACES`;
   };
 
@@ -377,6 +380,11 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
         <>
           {needsToBuy && costHint && (
             <p className="tipCostHint">Estimated purchase: {costHint}</p>
+          )}
+          {needsToBuy && !costHint && !swapLoading && (
+            <p className="tipCostHint warning">
+              You need {missingFaces.toLocaleString(undefined, { maximumFractionDigits: 2 })} more FACES. Buying is not available yet, so add FACES to your wallet and send again.
+            </p>
           )}
           <div className="tipActions">
             <button

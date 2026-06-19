@@ -1429,6 +1429,10 @@ h1 {
   font-weight: 700;
   color: var(--muted);
 }
+.tipCostHint.warning {
+  color: var(--coral);
+  line-height: 1.35;
+}
 .tipActions {
   display: flex;
   align-items: center;
