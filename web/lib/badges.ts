@@ -5,6 +5,7 @@ import {
   S3Client,
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 
 export type Badge = {
   id: string;
@@ -191,7 +192,16 @@ function s3Config(): S3Client | undefined {
 
   if (!storageBucket() || !endpoint || !accessKeyId || !secretAccessKey) return undefined;
 
-  const config: S3ClientConfig = { endpoint, region, credentials: { accessKeyId, secretAccessKey }, forcePathStyle: true };
+  const config: S3ClientConfig = {
+    endpoint,
+    region,
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
+    requestHandler: new NodeHttpHandler({
+      connectionTimeout: 1_000,
+      requestTimeout: 4_000
+    })
+  };
   cachedClient ??= new S3Client(config);
   return cachedClient;
 }

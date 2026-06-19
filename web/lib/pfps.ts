@@ -5,6 +5,7 @@ import {
   S3Client,
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { get, list } from "@vercel/blob";
 import { getLikeSummaryMap, getPendingReportedImageIds } from "./social";
 import { BADGE_DEFS, getBadgeSummary, awardFidBadges } from "./badges";
@@ -84,6 +85,8 @@ const BLOB_LIST_CACHE_TTL_MS = 120_000;
 const blobListCache = new Map<string, BlobListCacheEntry>();
 const GALLERY_INDEX_PATH = "state/index/gallery.json";
 const GALLERY_INDEX_CACHE_TTL_MS = 60_000;
+const STORAGE_READ_TIMEOUT_MS = 2_000;
+const PROFILE_ENRICH_TIMEOUT_MS = 1_200;
 
 type GalleryIndexImage = {
   id: string;
@@ -185,11 +188,15 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
   }
 
   try {
-    const object = await s3.client.send(
-      new GetObjectCommand({
-        Bucket: s3.bucket,
-        Key: `state/fids/${fid}.json`
-      })
+    const object = await withTimeout(
+      s3.client.send(
+        new GetObjectCommand({
+          Bucket: s3.bucket,
+          Key: `state/fids/${fid}.json`
+        })
+      ),
+      STORAGE_READ_TIMEOUT_MS,
+      `profile ${fid} read timed out after ${STORAGE_READ_TIMEOUT_MS}ms`
     );
     const text = await object.Body?.transformToString();
 
@@ -447,6 +454,9 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
   if (!options.fid) {
     const indexed = await getIndexedPfpGallery(options);
     if (indexed) return indexed;
+
+    console.warn("Gallery index unavailable; skipping broad blob scan for public gallery request.");
+    return { tiles: [], totalFids: 0, totalImages: 0 };
   }
 
   // Use fid-specific prefix when fetching a single profile — avoids scanning all blobs.
@@ -565,13 +575,7 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     const unnamed = withProfiles
       .filter((t) => !t.profile?.username && !t.profile?.displayName);
     if (unnamed.length > 0) {
-      await bulkEnrichProfiles(unnamed.map((t) => t.fid));
-      for (const tile of withProfiles) {
-        if (!tile.profile?.username && !tile.profile?.displayName) {
-          const cached = profileCache.get(tile.fid);
-          if (cached?.value) tile.profile = cached.value;
-        }
-      }
+      void enrichDisplayedProfiles(unnamed.map((t) => t.fid));
     }
   }
 
@@ -650,13 +654,7 @@ async function getIndexedPfpGallery(options: GalleryOptions = {}): Promise<PfpGa
     const unnamed = withProfiles
       .filter((t) => !t.profile?.username && !t.profile?.displayName);
     if (unnamed.length > 0) {
-      await bulkEnrichProfiles(unnamed.map((t) => t.fid));
-      for (const tile of withProfiles) {
-        if (!tile.profile?.username && !tile.profile?.displayName) {
-          const cached = profileCache.get(tile.fid);
-          if (cached?.value) tile.profile = cached.value;
-        }
-      }
+      void enrichDisplayedProfiles(unnamed.map((t) => t.fid));
     }
   }
 
@@ -716,11 +714,15 @@ async function fetchGalleryIndexUncached(): Promise<GalleryIndex | undefined> {
 
   if (s3) {
     try {
-      const object = await s3.client.send(
-        new GetObjectCommand({
-          Bucket: s3.bucket,
-          Key: GALLERY_INDEX_PATH
-        })
+      const object = await withTimeout(
+        s3.client.send(
+          new GetObjectCommand({
+            Bucket: s3.bucket,
+            Key: GALLERY_INDEX_PATH
+          })
+        ),
+        STORAGE_READ_TIMEOUT_MS,
+        `gallery index read timed out after ${STORAGE_READ_TIMEOUT_MS}ms`
       );
       const text = await object.Body?.transformToString();
       const parsed = text ? (JSON.parse(text) as GalleryIndex) : undefined;
@@ -753,6 +755,19 @@ async function fetchGalleryIndexUncached(): Promise<GalleryIndex | undefined> {
   const text = await new Response(blob.stream).text();
   const parsed = JSON.parse(text) as GalleryIndex;
   return isGalleryIndex(parsed) ? parsed : undefined;
+}
+
+async function enrichDisplayedProfiles(fids: number[]) {
+  try {
+    await withTimeout(
+      bulkEnrichProfiles(fids),
+      PROFILE_ENRICH_TIMEOUT_MS,
+      `profile enrichment timed out after ${PROFILE_ENRICH_TIMEOUT_MS}ms`
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown profile enrichment error";
+    console.warn(`Could not enrich displayed profiles: ${message}`);
+  }
 }
 
 async function getScoreIndex(): Promise<Record<string, number>> {
@@ -934,7 +949,11 @@ function s3Config() {
       accessKeyId,
       secretAccessKey
     },
-    forcePathStyle: true
+    forcePathStyle: true,
+    requestHandler: new NodeHttpHandler({
+      connectionTimeout: 1_000,
+      requestTimeout: 4_000
+    })
   };
 
   cachedS3Client ??= new S3Client(clientConfig);
@@ -1054,4 +1073,13 @@ function storedAtFromFilename(filename: string) {
     /^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/,
     "$1T$2:$3:$4.$5Z"
   );
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), timeoutMs);
+    })
+  ]);
 }

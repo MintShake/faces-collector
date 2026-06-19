@@ -5,6 +5,7 @@ import {
   S3Client,
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { Redis } from "@upstash/redis";
 
 export type LikeUser = {
@@ -511,7 +512,11 @@ function s3Config() {
     endpoint,
     region,
     credentials: { accessKeyId, secretAccessKey },
-    forcePathStyle: true
+    forcePathStyle: true,
+    requestHandler: new NodeHttpHandler({
+      connectionTimeout: 1_000,
+      requestTimeout: 4_000
+    })
   };
 
   cachedS3Client ??= new S3Client(clientConfig);
