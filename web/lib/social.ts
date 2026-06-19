@@ -87,6 +87,7 @@ export type ActivityEvent = {
     imageUrl?: string;
     amount?: number;
     txHash?: string;
+    message?: string;
   };
 };
 
@@ -359,6 +360,41 @@ export async function notifyPfpOwner(input: {
       notificationId: `like-${input.ownerFid}-${input.liker.id}-${Date.now()}`.slice(0, 128),
       title: "New Faces like",
       body: `${likerName} liked one of your PFPs.`,
+      targetUrl: input.targetUrl,
+      tokens: [details.token]
+    }),
+    signal: AbortSignal.timeout(10_000)
+  });
+
+  if (!response.ok) {
+    return { sent: false, reason: `${response.status} ${await response.text()}` };
+  }
+
+  return { sent: true };
+}
+
+export async function notifyTipRecipient(input: {
+  recipientFid: number;
+  amount: number;
+  message: string;
+  targetUrl: string;
+}) {
+  const recipient = await getRegisteredUser(input.recipientFid);
+  const details = recipient?.notificationDetails;
+
+  if (!details) {
+    return { sent: false, reason: "recipient-not-registered" };
+  }
+
+  const response = await fetch(details.url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      notificationId: `tip-${input.recipientFid}-${Date.now()}`.slice(0, 128),
+      title: `You received ${input.amount.toLocaleString()} FACES`,
+      body: input.message,
       targetUrl: input.targetUrl,
       tokens: [details.token]
     }),

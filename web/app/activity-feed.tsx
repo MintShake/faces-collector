@@ -53,6 +53,9 @@ export function ActivityFeed({ initial }: { initial: ActivityEvent[] }) {
                 )}
               </span>
               <span className="activityTime">{timeAgo(event.at)}</span>
+              {event.type === "tip" && event.subject.message && (
+                <span className="activityNote">{event.subject.message}</span>
+              )}
             </div>
             {event.type === "like" && event.subject.imageUrl && (
               <Link href={`/fid/${event.subject.fid}`}>

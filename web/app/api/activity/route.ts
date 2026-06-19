@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corsHeaders } from "@/lib/api";
-import { appendActivityEvent, getActivityLog } from "@/lib/social";
+import { appendActivityEvent, getActivityLog, notifyTipRecipient } from "@/lib/social";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     : undefined;
   const txHash = validTxHash(body?.txHash) ? body?.txHash : undefined;
   const actorAddress = validAddress(body?.actorAddress) ? body?.actorAddress.toLowerCase() : undefined;
+  const message = sanitizeText(body?.message, 220);
 
   if (!fid || fid <= 0 || amount == null || amount <= 0 || amount > 10_000_000) {
     return NextResponse.json({ ok: false, error: "subjectFid and amount required" }, { status: 400 });
@@ -45,8 +46,18 @@ export async function POST(request: NextRequest) {
       displayName: sanitizeText(body?.subjectDisplayName, 120),
       amount,
       txHash: txHash ?? undefined,
+      message,
     },
   });
+
+  if (message) {
+    notifyTipRecipient({
+      recipientFid: fid,
+      amount,
+      message,
+      targetUrl: new URL(`/fid/${fid}`, request.url).toString()
+    }).catch(() => {});
+  }
 
   return NextResponse.json({ ok: true });
 }
@@ -56,6 +67,7 @@ type TipEventBody = {
   subjectUsername?: string;
   subjectDisplayName?: string;
   amount: number;
+  message?: string;
   txHash?: string;
   actorAddress?: string;
 };

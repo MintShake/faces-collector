@@ -212,11 +212,14 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       const currentBalance = BigInt(balHex || "0x0");
       setFacesBalance(currentBalance);
 
+      let txHash: string | undefined;
+
       if (currentBalance >= rawFacesAmount) {
-        await ethProvider.request({
+        const result = await ethProvider.request({
           method: "eth_sendTransaction",
           params: [{ from: senderAddress, to: FACES_TOKEN, data: encodeERC20Transfer(recipientAddress, rawFacesAmount) }],
         });
+        txHash = typeof result === "string" ? result : undefined;
       } else {
         let quote = swapQuote;
         if (!quote) {
@@ -248,19 +251,38 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
           }
         }
 
-        await ethProvider.request({
+        const result = await ethProvider.request({
           method: "eth_sendTransaction",
           params: [{ from: senderAddress, to: quote.to, data: quote.calldata, value: quote.value }],
         });
+        txHash = typeof result === "string" ? result : undefined;
       }
+
+      const tipMessage = buildTipMessage({
+        amount,
+        recipientName,
+        senderName: senderDisplayName(identity, senderAddress),
+      });
 
       setStatus("sent");
       setOpen(false);
       fetch("/api/activity", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ subjectFid: fid, subjectDisplayName: recipientName, amount, actorAddress: senderAddress }),
+        body: JSON.stringify({
+          subjectFid: fid,
+          subjectDisplayName: recipientName,
+          amount,
+          actorAddress: senderAddress,
+          txHash,
+          message: tipMessage
+        }),
       }).catch(() => {});
+
+      if (isMiniApp) {
+        const url = new URL(`/fid/${fid}`, window.location.origin).toString();
+        sdk.actions.composeCast({ text: tipMessage, embeds: [url] }).catch(() => {});
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
@@ -442,4 +464,20 @@ function getInjected(): EthereumProvider | undefined {
 function trimEth(s: string): string {
   const n = parseFloat(s);
   return isNaN(n) ? s : n.toPrecision(4).replace(/\.?0+$/, "");
+}
+
+function senderDisplayName(identity: ReturnType<typeof useFacesAuth>["identity"], address: string) {
+  if (identity?.kind === "farcaster") {
+    return identity.username ? `@${identity.username}` : identity.displayName ?? `FID ${identity.fid}`;
+  }
+
+  return shortenAddress(address);
+}
+
+function buildTipMessage(input: { amount: number; recipientName: string; senderName: string }) {
+  return `${input.recipientName} received ${input.amount.toLocaleString()} FACES as a tip test from the Faces mini app by ${input.senderName}.`;
+}
+
+function shortenAddress(address: string) {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
