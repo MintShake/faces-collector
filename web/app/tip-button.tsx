@@ -8,7 +8,7 @@ import { useFacesAuth } from "./auth-context";
 const FACES_TOKEN = "0xa199Ab829b992FD357E40F1E91be724D7273aa82";
 const USDC_TOKEN  = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const TOKEN_DECIMALS = 18n;
-const PRESETS = [100, 500, 1000, 5000];
+const PRESETS = [10, 25, 50, 100];
 const BASE_CHAIN_ID = "0x2105"; // 8453
 
 type Status = "idle" | "approving" | "pending" | "sent" | "error";
@@ -356,20 +356,17 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
           <div className="tipPresets">
             {PRESETS.map((p) => (
-              <button key={p} type="button" className={amount === p ? "tipPreset active" : "tipPreset"} onClick={() => setAmount(p)}>
-                <span>{p.toLocaleString()}</span>
+              <button
+                key={p}
+                type="button"
+                className={amount === p ? "tipPreset active" : "tipPreset"}
+                onClick={() => setAmount(p)}
+                aria-label={`Tip ${p.toLocaleString()} FACES`}
+              >
+                <span>{p.toLocaleString()} FACES</span>
                 {usdFor(p) && <small>{usdFor(p)}</small>}
               </button>
             ))}
-          </div>
-
-          <div className="tipInputRow">
-            <input type="number" className="tipCustom" min={1} value={amount}
-              onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))}
-              aria-label="Tip amount in FACES"
-            />
-            <span className="tipUnit">FACES</span>
-            {usdFor(amount) && <span className="tipUsd">{usdFor(amount)}</span>}
           </div>
         </>
       )}
