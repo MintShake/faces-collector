@@ -170,7 +170,7 @@ export function GalleryControls({
       const params = new URLSearchParams({
         limit: String(pageSize),
         offset: String(offset),
-        imagesPerFid: "5",
+        imagesPerFid: "3",
         sort: sortMode,
         order: sortDirection,
         minImages: String(minimumCount)

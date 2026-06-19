@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function BrowsePage() {
   const initialPage = await getPfpGalleryPage({
     limit: initialPageSize,
-    imagesPerFid: 5,
+    imagesPerFid: 3,
     sort: "likes",
     order: "desc"
   }).catch(() => ({ tiles: [], totalFids: 0, totalImages: 0 }));
