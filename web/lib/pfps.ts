@@ -366,7 +366,16 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
   const offset = options.offset ?? 0;
   const limited = options.limit ? filtered.slice(offset, offset + options.limit) : filtered.slice(offset);
 
-  return limited;
+  // Attach profiles for tiles that don't already have one (search path already fetches them).
+  const withProfiles = await Promise.all(
+    limited.map(async (tile) => {
+      if ((tile as FidTile).profile) return tile as FidTile;
+      const profile = await getFidProfile(tile.fid);
+      return profile ? { ...tile, profile } : (tile as FidTile);
+    })
+  );
+
+  return withProfiles;
 }
 
 async function getScoreIndex(): Promise<Record<string, number>> {
