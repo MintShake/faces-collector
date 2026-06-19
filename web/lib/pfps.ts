@@ -215,9 +215,9 @@ async function bulkEnrichProfiles(fids: number[]) {
     }
   }
 
-  // For any FIDs Neynar didn't return, fall back to Warpcast one-by-one.
+  // For any FIDs Neynar didn't return, fall back to Warpcast sequentially.
   const missing = fids.filter((f) => !enriched.has(f));
-  await Promise.all(missing.map(async (fid) => {
+  for (const fid of missing) {
     try {
       const res = await fetch(`https://api.warpcast.com/v2/user?fid=${fid}`);
       if (res.ok) {
@@ -228,7 +228,7 @@ async function bulkEnrichProfiles(fids: number[]) {
         }
       }
     } catch { /* ignore */ }
-  }));
+  }
 
   // Write enriched profiles back to storage and update cache.
   await Promise.all([...enriched.entries()].map(async ([fid, names]) => {
@@ -441,15 +441,19 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     })
   );
 
-  // Bulk-enrich any tiles still missing a name — awaited so writes complete before response.
-  const unnamed = withProfiles.filter((t) => !t.profile?.username && !t.profile?.displayName);
-  if (unnamed.length > 0) {
-    await bulkEnrichProfiles(unnamed.map((t) => t.fid));
-    // Re-read enriched profiles from cache and merge into tiles.
-    for (const tile of withProfiles) {
-      if (!tile.profile?.username && !tile.profile?.displayName) {
-        const cached = profileCache.get(tile.fid);
-        if (cached?.value) tile.profile = cached.value;
+  // Bulk-enrich tiles missing a name — skip during build to avoid OOM / socket exhaustion.
+  const isBuilding = process.env.NEXT_PHASE === "phase-production-build";
+  if (!isBuilding) {
+    const unnamed = withProfiles
+      .filter((t) => !t.profile?.username && !t.profile?.displayName)
+      .slice(0, 30); // cap per request to avoid overwhelming S3/Neynar
+    if (unnamed.length > 0) {
+      await bulkEnrichProfiles(unnamed.map((t) => t.fid));
+      for (const tile of withProfiles) {
+        if (!tile.profile?.username && !tile.profile?.displayName) {
+          const cached = profileCache.get(tile.fid);
+          if (cached?.value) tile.profile = cached.value;
+        }
       }
     }
   }
