@@ -1,7 +1,7 @@
 "use client";
 
 import { sdk } from "@farcaster/miniapp-sdk";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type MiniAppUser = {
   fid: number;
@@ -19,7 +19,51 @@ export function AddAppButton({
   variant?: "primary" | "secondary";
   label?: string;
 }) {
-  const [status, setStatus] = useState<"idle" | "saved" | "busy">("idle");
+  const [status, setStatus] = useState<"checking" | "hidden" | "idle" | "saved" | "busy">("checking");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadState() {
+      try {
+        if (!(await sdk.isInMiniApp())) {
+          if (!cancelled) setStatus("hidden");
+          return;
+        }
+
+        const context = await sdk.context;
+        if (cancelled) return;
+
+        setStatus(context.client.added && context.client.notificationDetails ? "hidden" : "idle");
+      } catch {
+        if (!cancelled) setStatus("hidden");
+      }
+    }
+
+    function onMiniAppAdded() {
+      setStatus("saved");
+    }
+
+    function onNotificationsEnabled() {
+      setStatus("hidden");
+    }
+
+    function onNotificationsDisabled() {
+      setStatus("idle");
+    }
+
+    void loadState();
+    sdk.on("miniAppAdded", onMiniAppAdded);
+    sdk.on("notificationsEnabled", onNotificationsEnabled);
+    sdk.on("notificationsDisabled", onNotificationsDisabled);
+
+    return () => {
+      cancelled = true;
+      sdk.off("miniAppAdded", onMiniAppAdded);
+      sdk.off("notificationsEnabled", onNotificationsEnabled);
+      sdk.off("notificationsDisabled", onNotificationsDisabled);
+    };
+  }, []);
 
   async function addApp() {
     setStatus("busy");
@@ -45,15 +89,19 @@ export function AddAppButton({
         })
       });
 
-      setStatus("saved");
+      setStatus(result.notificationDetails ?? context.client.notificationDetails ? "hidden" : "saved");
     } catch {
       setStatus("idle");
     }
   }
 
+  if (status === "checking" || status === "hidden") {
+    return null;
+  }
+
   return (
     <button className={variant === "primary" ? "primaryButton" : "shareButton"} type="button" onClick={addApp} disabled={status === "busy"}>
-      {status === "saved" ? "Notifications on" : status === "busy" ? "Adding" : label}
+      {status === "saved" ? "Enable notifications" : status === "busy" ? "Adding" : label}
     </button>
   );
 }

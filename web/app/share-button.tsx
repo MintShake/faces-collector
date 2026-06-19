@@ -9,7 +9,9 @@ export function ShareButton({
   name,
   variant = "secondary",
   label,
-  text
+  text,
+  hideAfterUse = false,
+  storageKey = "faces.sharedMiniApp"
 }: {
   fid?: number;
   count?: number;
@@ -17,9 +19,12 @@ export function ShareButton({
   variant?: "primary" | "secondary" | "compact";
   label?: string;
   text?: string;
+  hideAfterUse?: boolean;
+  storageKey?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [inMiniApp, setInMiniApp] = useState(false);
   const [canShareNative, setCanShareNative] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -27,6 +32,9 @@ export function ShareButton({
   useEffect(() => {
     sdk.isInMiniApp().then(setInMiniApp).catch(() => setInMiniApp(false));
     setCanShareNative(typeof navigator !== "undefined" && "share" in navigator);
+    if (hideAfterUse) {
+      setHidden(window.localStorage.getItem(storageKey) === "true");
+    }
   }, []);
 
   useEffect(() => {
@@ -56,6 +64,7 @@ export function ShareButton({
     if (inMiniApp) {
       const { url, shareText } = buildShare();
       await sdk.actions.composeCast({ text: shareText, embeds: [url] });
+      markUsed();
       return;
     }
 
@@ -70,6 +79,7 @@ export function ShareButton({
       "noreferrer"
     );
     setOpen(false);
+    markUsed();
   }
 
   function shareToX() {
@@ -80,12 +90,14 @@ export function ShareButton({
       "noreferrer"
     );
     setOpen(false);
+    markUsed();
   }
 
   async function shareNative() {
     const { url, shareText } = buildShare();
     try {
       await navigator.share({ title: "Faces", text: shareText, url });
+      markUsed();
     } catch {
       // User cancelled the native share sheet.
     }
@@ -98,6 +110,17 @@ export function ShareButton({
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
     setOpen(false);
+    markUsed();
+  }
+
+  function markUsed() {
+    if (!hideAfterUse) return;
+    window.localStorage.setItem(storageKey, "true");
+    setHidden(true);
+  }
+
+  if (hidden) {
+    return null;
   }
 
   return (

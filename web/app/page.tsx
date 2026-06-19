@@ -20,7 +20,11 @@ export default async function Home() {
               Browse all faces
             </Link>
             <AddAppButton label="Add Mini App" />
-            <ShareButton label="Share Mini App" text="Faces tracks public profile image changes across Farcaster." />
+            <ShareButton
+              label="Share Mini App"
+              text="Faces tracks public profile image changes across Farcaster."
+              hideAfterUse
+            />
           </div>
           <div className="memoryRibbon">
             <span className="platformActive">Farcaster</span>
