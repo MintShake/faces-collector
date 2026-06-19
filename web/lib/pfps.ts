@@ -541,25 +541,16 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     .filter((tile) => !options.minImages || tile.imageCount >= options.minImages)
     .sort((a, b) => compareTiles(a, b, options.sort ?? "count", options.order ?? "desc", scoreIndex));
 
-  // Apply query filter — numeric matches FID, text loads profiles for gallery tiles.
+  // Apply query filter — numeric matches FID, text searches indexed profile names.
   let filtered = tiles;
   if (options.query) {
     const q = options.query.toLowerCase();
     if (/^\d+$/.test(q)) {
       filtered = tiles.filter((t) => String(t.fid).includes(q));
     } else {
-      // Text search: load profiles in parallel for the top N tiles (by current sort).
-      // Bounded to avoid serverless timeouts on large datasets.
-      const TEXT_SEARCH_CAP = 500;
-      const candidates = tiles.slice(0, TEXT_SEARCH_CAP);
-      const profiles = await Promise.all(candidates.map((t) => getFidProfile(t.fid)));
-      filtered = candidates
-        .map((tile, i) => ({ tile, profile: profiles[i] }))
-        .filter(({ profile }) =>
-          profile?.username?.toLowerCase().includes(q) ||
-          profile?.displayName?.toLowerCase().includes(q)
-        )
-        .map(({ tile, profile }) => ({ ...tile, profile }));
+      filtered = tiles.filter((tile) =>
+        profileMatchesQuery((tile as { profile?: FidProfile }).profile, q)
+      );
     }
   }
 
@@ -623,16 +614,7 @@ async function getIndexedPfpGallery(options: GalleryOptions = {}): Promise<PfpGa
     if (/^\d+$/.test(q)) {
       filtered = tiles.filter((t) => String(t.fid).includes(q));
     } else {
-      const TEXT_SEARCH_CAP = 500;
-      const candidates = tiles.slice(0, TEXT_SEARCH_CAP);
-      const profiles = await Promise.all(candidates.map((t) => getFidProfile(t.fid)));
-      filtered = candidates
-        .map((tile, i) => ({ tile, profile: profiles[i] }))
-        .filter(({ profile }) =>
-          profile?.username?.toLowerCase().includes(q) ||
-          profile?.displayName?.toLowerCase().includes(q)
-        )
-        .map(({ tile, profile }) => ({ ...tile, profile }));
+      filtered = tiles.filter((tile) => profileMatchesQuery(tile.profile, q));
     }
   }
 
@@ -696,6 +678,13 @@ function imageFromIndex(
     storedAt: image.storedAt,
     likeCount: likeSummary[image.id]?.count ?? 0
   };
+}
+
+function profileMatchesQuery(profile: FidProfile | undefined, query: string) {
+  return Boolean(
+    profile?.username?.toLowerCase().includes(query) ||
+    profile?.displayName?.toLowerCase().includes(query)
+  );
 }
 
 async function getGalleryIndex(): Promise<GalleryIndex | undefined> {
