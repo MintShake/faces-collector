@@ -5,8 +5,8 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { useWeb3ModalProvider } from "@web3modal/ethers/react";
 import { useFacesAuth } from "./auth-context";
 
-const FACES_TOKEN = "0xa199Ab829b992FD357E40F1E91be724D7273aa82";
-const USDC_TOKEN  = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const FACES_TOKEN = "0xa199ab829b992fd357e40f1e91be724d7273aa82";
+const USDC_TOKEN  = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 const FACES_CAIP19 = `eip155:8453/erc20:${FACES_TOKEN}`;
 const USDC_CAIP19  = `eip155:8453/erc20:${USDC_TOKEN}`;
 const TOKEN_DECIMALS = 18n;
@@ -366,7 +366,6 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
         token: FACES_CAIP19,
         amount: rawFacesAmount.toString(),
         recipientFid: fid,
-        recipientAddress,
       });
 
       if (!sendResult.success) {
