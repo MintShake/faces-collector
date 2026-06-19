@@ -22,8 +22,14 @@
 
 /* ─── Reset ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { -webkit-text-size-adjust: 100%; }
+html {
+  width: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
 body {
+  width: 100%;
+  overflow-x: hidden;
   min-height: 100dvh;
   background: var(--bg);
   color: var(--ink);
@@ -36,6 +42,7 @@ body {
 a  { color: inherit; text-decoration: none; }
 button, input, select { font: inherit; }
 img { display: block; max-width: 100%; }
+main, section, article, header, nav, div { min-width: 0; }
 
 /* ─── Global nav ─── */
 .globalNav {
@@ -55,12 +62,14 @@ img { display: block; max-width: 100%; }
   height: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
+  gap: 8px;
+  padding: 0 clamp(12px, 4vw, 20px);
 }
 .navBrandGroup {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 .navBrand {
   font-size: 19px;
@@ -72,6 +81,8 @@ img { display: block; max-width: 100%; }
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 .navLink {
   display: inline-flex;
@@ -147,6 +158,8 @@ img { display: block; max-width: 100%; }
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .navConnectLoading {
   width: 76px;
@@ -349,7 +362,7 @@ img { display: block; max-width: 100%; }
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px 80px;
+  padding: 0 clamp(12px, 4vw, 20px) 80px;
 }
 
 /* ─── Live refresh dot (inline next to brand) ─── */
@@ -434,6 +447,7 @@ h1 {
   gap: 10px;
   margin-bottom: 24px;
 }
+.heroActions > * { max-width: 100%; }
 
 .memoryRibbon {
   display: flex;
@@ -493,6 +507,7 @@ h1 {
   padding: 20px 16px;
   background: var(--surface);
   transition: background 140ms ease;
+  min-width: 0;
 }
 .statsStrip div:hover { background: #fafafa; }
 .statsStrip span {
@@ -662,6 +677,8 @@ h1 {
               box-shadow 200ms cubic-bezier(.2,.8,.2,1),
               border-color 200ms ease;
   animation: tileIn 500ms cubic-bezier(.2,.8,.2,1) both;
+  min-width: 0;
+  overflow: hidden;
 }
 .tile::before {
   content: "";
@@ -813,6 +830,10 @@ h1 {
   text-transform: uppercase;
   letter-spacing: 0.3px;
   width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Buttons ─── */
@@ -830,6 +851,8 @@ h1 {
   cursor: pointer;
   transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
   -webkit-tap-highlight-color: transparent;
+  max-width: 100%;
+  white-space: nowrap;
 }
 .primaryButton {
   height: 48px;
@@ -894,6 +917,7 @@ h1 {
   background: rgba(255,255,255,0.9);
   color: var(--ink);
   font-size: 14px;
+  min-width: 0;
 }
 .likeButton.active {
   border-color: rgba(255,79,123,0.36);
@@ -961,6 +985,9 @@ h1 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ─── eyebrow / label ─── */
@@ -983,6 +1010,7 @@ h1 {
   padding: 24px 0 20px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 4px;
+  min-width: 0;
 }
 .topbar h1 {
   font-size: clamp(28px, 5vw, 48px);
@@ -1038,6 +1066,7 @@ h1 {
   font-size: 14px;
   font-weight: 700;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 .inlineReset {
   margin-left: 8px;
@@ -1047,6 +1076,7 @@ h1 {
   font: inherit;
   font-weight: 800;
   cursor: pointer;
+  white-space: nowrap;
 }
 .loadError { margin: 10px 0 0; font-weight: 700; color: var(--coral); }
 .loadMoreBar {
@@ -1108,6 +1138,7 @@ h1 {
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: var(--soft-shadow);
+  overflow: hidden;
 }
 .profileAvatarStack {
   position: relative;
@@ -1135,6 +1166,7 @@ h1 {
   letter-spacing: -0.02em;
   line-height: 1;
   margin-bottom: 4px;
+  overflow-wrap: anywhere;
 }
 .profileHandle {
   font-size: 15px;
@@ -1147,6 +1179,7 @@ h1 {
   line-height: 1.5;
   color: var(--muted);
   max-width: 640px;
+  overflow-wrap: anywhere;
 }
 
 .badgeRow {
@@ -1186,6 +1219,8 @@ h1 {
   font-size: 13px;
   font-weight: 700;
   color: var(--muted);
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 /* ─── Tip button ─── */
@@ -1228,6 +1263,8 @@ h1 {
   border-radius: 16px;
   border: 1px solid var(--line);
   background: var(--surface);
+  max-width: 100%;
+  overflow: hidden;
 }
 .tipHeader {
   display: flex;
@@ -1235,6 +1272,7 @@ h1 {
   justify-content: space-between;
   gap: 8px;
   font-size: 14px;
+  flex-wrap: wrap;
 }
 .tipPrice {
   font-size: 11px;
@@ -1260,6 +1298,8 @@ h1 {
   cursor: pointer;
   transition: border-color 140ms ease;
   line-height: 1.2;
+  min-width: 0;
+  flex: 1 1 112px;
 }
 .tipPreset small {
   font-size: 10px;
@@ -1281,6 +1321,7 @@ h1 {
 .tipAddressRow {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 6px 0;
 }
@@ -1359,6 +1400,7 @@ h1 {
 .reportActions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .historyItem.reportedPending {
@@ -1443,6 +1485,7 @@ h1 {
 .tipActions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 4px;
 }
@@ -1451,6 +1494,7 @@ h1 {
   max-width: 100%;
   white-space: nowrap;
 }
+.tipActions > button { flex: 1 1 130px; }
 
 .tipBalances {
   display: flex;
@@ -1540,6 +1584,8 @@ h1 {
   box-shadow: var(--soft-shadow);
   animation: tileIn 480ms cubic-bezier(.2,.8,.2,1) both;
   transition: transform 160ms ease, box-shadow 160ms ease;
+  min-width: 0;
+  overflow: hidden;
 }
 .historyItem:hover {
   transform: translateY(-3px);
@@ -1704,6 +1750,7 @@ h1 {
   padding: 2px 2px 2px 10px;
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(255,207,74,0.3), rgba(24,200,210,0.16));
+  max-width: 100%;
 }
 .badgeChip span {
   font-size: 11px;
@@ -1711,6 +1758,10 @@ h1 {
   text-transform: uppercase;
   letter-spacing: 0.3px;
   color: var(--night);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .badgeChip .shareWrap .shareButton {
   height: 22px;
@@ -1724,6 +1775,7 @@ h1 {
 .shareWrap {
   position: relative;
   display: inline-flex;
+  max-width: 100%;
 }
 .shareWrap .shareButton.compact { width: 100%; }
 .shareMenu {
@@ -1733,7 +1785,9 @@ h1 {
   z-index: 20;
   display: flex;
   flex-direction: column;
+  width: max-content;
   min-width: 168px;
+  max-width: min(240px, calc(100vw - 24px));
   padding: 6px;
   border-radius: 14px;
   border: 1px solid var(--line);
@@ -1753,6 +1807,9 @@ h1 {
   font-weight: 600;
   text-align: left;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .shareMenu button:hover { background: var(--bg); }
 
@@ -1765,7 +1822,7 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: clamp(12px, 4vw, 20px);
   background: rgba(7, 18, 31, 0.55);
   backdrop-filter: blur(4px);
   animation: fadeUp 160ms ease both;
@@ -1778,6 +1835,8 @@ h1 {
   border-radius: 18px;
   background: #fff;
   box-shadow: var(--shadow);
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
 }
 .aboutModal h2 {
   margin: 0 36px 12px 0;
@@ -1820,6 +1879,8 @@ h1 {
   border-radius: 24px;
   background: #fff;
   box-shadow: var(--shadow);
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
 }
 .connectModal h3 {
   font-size: 19px;
@@ -1945,6 +2006,133 @@ h1 {
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ─── Narrow phones ─── */
+@media (max-width: 520px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topbar .backLink {
+    align-self: flex-start;
+  }
+
+  .adminControls,
+  .adminReportCard {
+    grid-template-columns: 1fr;
+  }
+
+  .adminReportActions {
+    justify-content: stretch;
+  }
+
+  .adminReportActions button {
+    flex: 1 1 130px;
+  }
+}
+
+@media (max-width: 430px) {
+  .navInner { gap: 6px; }
+  .navLinks { gap: 4px; }
+  .navBrowse,
+  .navAbout,
+  .navConnect {
+    height: 32px;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+  .navFacesBalance { display: none; }
+
+  h1 {
+    font-size: clamp(34px, 12vw, 52px);
+    letter-spacing: -0.02em;
+  }
+
+  .miniHero {
+    gap: 22px;
+    padding-top: 34px;
+  }
+
+  .heroActions > *,
+  .heroActions .shareButton,
+  .heroActions .primaryButton {
+    width: 100%;
+  }
+
+  .statsStrip {
+    grid-template-columns: 1fr;
+    border-radius: 16px;
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .controls label:first-child { grid-column: auto; }
+
+  .tileGrid,
+  .changeRail,
+  .historyGrid,
+  .homeInfoRow,
+  .hubGrid,
+  .hubFacts {
+    grid-template-columns: 1fr;
+  }
+
+  .profilePanel,
+  .wrappedPanel,
+  .tipPanel {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .profileAvatarStack {
+    height: 128px;
+  }
+
+  .profileAvatarStack img {
+    width: 96px;
+    height: 96px;
+    border-width: 4px;
+  }
+
+  .profileFacts span,
+  .profileFacts a {
+    min-height: 32px;
+    height: auto;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .tipActions,
+  .reportActions {
+    align-items: stretch;
+  }
+
+  .tipActions > button,
+  .reportActions > button {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .shareMenu {
+    left: 0;
+    right: auto;
+  }
+}
+
+@media (max-width: 360px) {
+  .navBrand { font-size: 17px; }
+  .navBrowse { display: none; }
+  .shell { padding-left: 10px; padding-right: 10px; }
+  .tile,
+  .historyItem,
+  .changeCard {
+    padding: 10px;
+    border-radius: 16px;
+  }
 }
 
 /* ─── Tablet 640px+ ─── */
@@ -2088,7 +2276,7 @@ h1 {
 
 /* ─── Activity feed ─── */
 .activityFeed {
-  padding: 0 16px;
+  padding: 0 clamp(0px, 3vw, 16px);
   margin-bottom: 40px;
 }
 .activityEmpty {
@@ -2112,6 +2300,7 @@ h1 {
   border-radius: 10px;
   background: var(--surface);
   transition: background 0.15s;
+  min-width: 0;
 }
 .activityItem:hover { background: var(--surface-hover, #f0f0f0); }
 .activityIcon {
@@ -2131,9 +2320,9 @@ h1 {
 .activityText {
   font-size: 13px;
   color: var(--ink);
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .activityActor {
   font-weight: 700;
@@ -2148,13 +2337,16 @@ h1 {
 }
 .activitySubject:hover { text-decoration: underline; }
 .activityAmount {
+  display: inline-block;
   font-weight: 700;
   color: var(--cyan);
+  white-space: nowrap;
 }
 .activityTime {
   font-size: 11px;
   color: var(--muted);
   flex-shrink: 0;
+  white-space: nowrap;
 }
 .activityNote {
   font-size: 12px;
@@ -2168,6 +2360,23 @@ h1 {
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+}
+
+@media (max-width: 430px) {
+  .activityItem {
+    align-items: flex-start;
+    gap: 8px;
+    padding: 9px 10px;
+  }
+
+  .activityTime {
+    display: none;
+  }
+
+  .activityThumb {
+    width: 32px;
+    height: 32px;
+  }
 }
 
 /* ─── Reduced motion ─── */

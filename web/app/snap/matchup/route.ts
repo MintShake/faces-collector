@@ -93,8 +93,8 @@ async function resolveMatchup(request: Request): Promise<Matchup> {
     if (left && right) return makeMatchup(left, right);
   }
 
-  const seed = numericParam(url.searchParams.get("seed")) ?? 0;
-  const page = await getPfpGalleryPage({ sort: "newest", limit: 12, imagesPerFid: 1, order: "desc" });
+  const seed = numericParam(url.searchParams.get("seed")) ?? Date.now();
+  const page = await getPfpGalleryPage({ sort: "newest", limit: 80, imagesPerFid: 1, order: "desc" });
   const candidates = page.tiles
     .map((tile) => candidateFromTile(tile))
     .filter((candidate): candidate is SnapMatchupCandidate => Boolean(candidate));
@@ -103,8 +103,13 @@ async function resolveMatchup(request: Request): Promise<Matchup> {
     throw new Error("Not enough profiles to build a matchup.");
   }
 
-  const leftIndex = seed % candidates.length;
-  const rightIndex = (leftIndex + 1 + (seed % (candidates.length - 1))) % candidates.length;
+  const random = seededRandom(seed);
+  const leftIndex = Math.floor(random() * candidates.length);
+  let rightIndex = Math.floor(random() * candidates.length);
+
+  if (rightIndex === leftIndex) {
+    rightIndex = (rightIndex + 1 + Math.floor(random() * (candidates.length - 1))) % candidates.length;
+  }
 
   return makeMatchup(candidates[leftIndex], candidates[rightIndex]);
 }
@@ -148,7 +153,8 @@ function renderMatchupSnap(input: {
   const leftPct = total ? Math.round((input.votes.totals.left / total) * 100) : 0;
   const rightPct = total ? 100 - leftPct : 0;
   const appTarget = `${APP_URL}/?from=snap-matchup`;
-  const nextTarget = `${new URL("/snap/matchup", input.snapUrl).toString()}?seed=${Date.now() % 9973}`;
+  const nextSeed = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const nextTarget = `${new URL("/snap/matchup", input.snapUrl).toString()}?seed=${nextSeed}`;
 
   return {
     version: "2.0",
@@ -339,6 +345,18 @@ function numericParam(value: string | null) {
 
 function validChoice(value: string | null): SnapMatchupChoice | undefined {
   return value === "left" || value === "right" ? value : undefined;
+}
+
+function seededRandom(seed: number) {
+  let state = seed >>> 0;
+
+  return () => {
+    state += 0x6D2B79F5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function wantsSnap(request: Request) {
