@@ -8,17 +8,30 @@ import { SafeImage } from "./safe-image";
 
 type Stats = { totalFids: number; totalImages: number; totalLikes: number };
 type RecentChange = { fid: number; profile?: FidTile["profile"]; image: PfpImage };
-type ApiResponse = { ok: boolean; totalFids: number; totalImages: number; data: FidTile[] };
-type StatsResponse = { ok: boolean; data: Stats };
+type HomeResponse = {
+  ok: boolean;
+  data: {
+    stats: Stats;
+    heroImages: PfpImage[];
+    recentChanges: RecentChange[];
+    topTiles: FidTile[];
+  };
+};
+
+let homePayloadPromise: Promise<HomeResponse> | undefined;
+
+function fetchHomePayload() {
+  homePayloadPromise ??= fetch("/api/home").then((r) => r.json() as Promise<HomeResponse>);
+  return homePayloadPromise;
+}
 
 export function HeroStack() {
   const [images, setImages] = useState<PfpImage[]>([]);
 
   useEffect(() => {
-    fetch("/api/faces?sort=newest&limit=5&imagesPerFid=1&order=desc")
-      .then((r) => r.json())
-      .then((d: ApiResponse) => {
-        setImages(d.data.map((t) => t.images[0]).filter(Boolean));
+    fetchHomePayload()
+      .then((d: HomeResponse) => {
+        setImages(d.data.heroImages.filter(Boolean));
       })
       .catch(() => {});
   }, []);
@@ -43,25 +56,12 @@ export function HomeData() {
   const [topTiles, setTopTiles] = useState<FidTile[]>([]);
 
   useEffect(() => {
-    fetch("/api/faces/stats")
-      .then((r) => r.json())
-      .then((d: StatsResponse) => setStats(d.data))
-      .catch(() => {});
-
-    fetch("/api/faces?sort=newest&limit=14&imagesPerFid=1&order=desc")
-      .then((r) => r.json())
-      .then((d: ApiResponse) => {
-        setRecentChanges(
-          d.data
-            .map((t) => ({ fid: t.fid, profile: t.profile, image: t.images[0] }))
-            .filter((c) => Boolean(c.image)) as RecentChange[]
-        );
+    fetchHomePayload()
+      .then((d: HomeResponse) => {
+        setStats(d.data.stats);
+        setRecentChanges(d.data.recentChanges);
+        setTopTiles(d.data.topTiles);
       })
-      .catch(() => {});
-
-    fetch("/api/faces?sort=count&limit=8&imagesPerFid=5&order=desc")
-      .then((r) => r.json())
-      .then((d: ApiResponse) => setTopTiles(d.data))
       .catch(() => {});
   }, []);
 

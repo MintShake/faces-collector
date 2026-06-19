@@ -5,7 +5,7 @@ import {
   S3Client,
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
-import { list } from "@vercel/blob";
+import { get, list } from "@vercel/blob";
 import { getLikeSummaryMap } from "./social";
 import { BADGE_DEFS, getBadgeSummary, awardFidBadges } from "./badges";
 
@@ -82,6 +82,41 @@ type BlobListCacheEntry = {
 
 const BLOB_LIST_CACHE_TTL_MS = 120_000;
 const blobListCache = new Map<string, BlobListCacheEntry>();
+const GALLERY_INDEX_PATH = "state/index/gallery.json";
+const GALLERY_INDEX_CACHE_TTL_MS = 60_000;
+
+type GalleryIndexImage = {
+  id: string;
+  filename: string;
+  pathname: string;
+  thumbPathname?: string;
+  mediumPathname?: string;
+  size: number;
+  storedAt: string;
+};
+
+type GalleryIndexEntry = {
+  fid: number;
+  imageCount: number;
+  newestAt: string;
+  oldestAt: string;
+  images: GalleryIndexImage[];
+};
+
+type GalleryIndex = {
+  version: 1;
+  generatedAt: string;
+  totalFids: number;
+  totalImages: number;
+  entries: GalleryIndexEntry[];
+};
+
+type GalleryIndexCacheEntry = {
+  expiresAt: number;
+  promise: Promise<GalleryIndex | undefined>;
+};
+
+let galleryIndexCache: GalleryIndexCacheEntry | undefined;
 
 type ScoreIndexCacheEntry = {
   expiresAt: number;
@@ -249,6 +284,19 @@ async function bulkEnrichProfiles(fids: number[]) {
 }
 
 export async function getRecentPfpImages(limit = 50) {
+  const index = await getGalleryIndex();
+
+  if (index) {
+    const likeSummary = await getLikeSummaryMap();
+    return index.entries
+      .flatMap((entry) => entry.images.map((image) => ({
+        fid: entry.fid,
+        image: imageFromIndex(image, likeSummary)
+      })))
+      .sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt))
+      .slice(0, limit);
+  }
+
   const { tiles: gallery } = await getBlobPfpGallery();
 
   return gallery
@@ -258,6 +306,50 @@ export async function getRecentPfpImages(limit = 50) {
 }
 
 export async function getPfpStats() {
+  const index = await getGalleryIndex();
+
+  if (index) {
+    const likeSummary = await getLikeSummaryMap();
+    let totalLikes = 0;
+    let newest: { fid: number; image: PfpImage } | undefined;
+    let mostLiked: { fid: number; image: PfpImage } | undefined;
+    let topTimeline: GalleryIndexEntry | undefined;
+
+    for (const entry of index.entries) {
+      if (!topTimeline || entry.imageCount > topTimeline.imageCount) {
+        topTimeline = entry;
+      }
+
+      for (const indexedImage of entry.images) {
+        const image = imageFromIndex(indexedImage, likeSummary);
+        totalLikes += image.likeCount;
+
+        if (!newest || Date.parse(image.storedAt) > Date.parse(newest.image.storedAt)) {
+          newest = { fid: entry.fid, image };
+        }
+
+        if (!mostLiked || image.likeCount > mostLiked.image.likeCount) {
+          mostLiked = { fid: entry.fid, image };
+        }
+      }
+    }
+
+    return {
+      totalFids: index.totalFids,
+      totalImages: index.totalImages,
+      totalLikes,
+      newest: newest ?? null,
+      topTimeline: topTimeline
+        ? {
+            fid: topTimeline.fid,
+            imageCount: topTimeline.imageCount,
+            latestImage: topTimeline.images[0] ? imageFromIndex(topTimeline.images[0], likeSummary) : undefined
+          }
+        : null,
+      mostLiked: mostLiked && mostLiked.image.likeCount > 0 ? mostLiked : null
+    };
+  }
+
   const { tiles: gallery } = await getBlobPfpGallery();
   const images = gallery.flatMap((tile) => tile.images.map((image) => ({ fid: tile.fid, image })));
   const newest = [...images].sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt))[0];
@@ -331,6 +423,11 @@ export async function getObjectStorageStats() {
 }
 
 async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}): Promise<PfpGalleryPage> {
+  if (!options.fid) {
+    const indexed = await getIndexedPfpGallery(options);
+    if (indexed) return indexed;
+  }
+
   // Use fid-specific prefix when fetching a single profile — avoids scanning all blobs.
   const blobPrefix = options.fid ? `pfps/${options.fid}/` : "pfps/";
   const [blobs, likeSummary, badgeSummary, scoreIndex] = await Promise.all([
@@ -460,6 +557,177 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     totalFids,
     totalImages
   };
+}
+
+async function getIndexedPfpGallery(options: GalleryOptions = {}): Promise<PfpGalleryPage | undefined> {
+  const index = await getGalleryIndex();
+
+  if (!index) {
+    return undefined;
+  }
+
+  const [likeSummary, badgeSummary, scoreIndex] = await Promise.all([
+    getLikeSummaryMap(),
+    getBadgeSummary(),
+    options.sort === "score" ? getScoreIndex() : Promise.resolve({} as Record<string, number>)
+  ]);
+  const tiles = index.entries
+    .map((entry) => {
+      const images = entry.images
+        .map((image) => imageFromIndex(image, likeSummary))
+        .sort((a, b) => Date.parse(b.storedAt) - Date.parse(a.storedAt));
+      const badges = badgeSummary[String(entry.fid)] ?? [];
+
+      return {
+        fid: entry.fid,
+        imageCount: entry.imageCount,
+        images: options.imagesPerFid ? images.slice(0, options.imagesPerFid) : images,
+        badges: badges.length > 0 ? badges : undefined
+      };
+    })
+    .filter((tile) => tile.images.length > 0)
+    .filter((tile) => !options.minImages || tile.imageCount >= options.minImages)
+    .sort((a, b) => compareTiles(a, b, options.sort ?? "count", options.order ?? "desc", scoreIndex));
+
+  let filtered = tiles;
+  if (options.query) {
+    const q = options.query.toLowerCase();
+    if (/^\d+$/.test(q)) {
+      filtered = tiles.filter((t) => String(t.fid).includes(q));
+    } else {
+      const TEXT_SEARCH_CAP = 500;
+      const candidates = tiles.slice(0, TEXT_SEARCH_CAP);
+      const profiles = await Promise.all(candidates.map((t) => getFidProfile(t.fid)));
+      filtered = candidates
+        .map((tile, i) => ({ tile, profile: profiles[i] }))
+        .filter(({ profile }) =>
+          profile?.username?.toLowerCase().includes(q) ||
+          profile?.displayName?.toLowerCase().includes(q)
+        )
+        .map(({ tile, profile }) => ({ ...tile, profile }));
+    }
+  }
+
+  const offset = options.offset ?? 0;
+  const limited = options.limit ? filtered.slice(offset, offset + options.limit) : filtered.slice(offset);
+  const totalFids = filtered.length;
+  const totalImages = filtered.reduce((sum, tile) => sum + tile.imageCount, 0);
+  const withProfiles = await Promise.all(
+    limited.map(async (tile) => {
+      if ((tile as FidTile).profile) return tile as FidTile;
+      const profile = await getFidProfile(tile.fid);
+      return profile ? { ...tile, profile } : (tile as FidTile);
+    })
+  );
+
+  const isBuilding = process.env.NEXT_PHASE === "phase-production-build";
+  if (!isBuilding) {
+    const unnamed = withProfiles
+      .filter((t) => !t.profile?.username && !t.profile?.displayName);
+    if (unnamed.length > 0) {
+      await bulkEnrichProfiles(unnamed.map((t) => t.fid));
+      for (const tile of withProfiles) {
+        if (!tile.profile?.username && !tile.profile?.displayName) {
+          const cached = profileCache.get(tile.fid);
+          if (cached?.value) tile.profile = cached.value;
+        }
+      }
+    }
+  }
+
+  return {
+    tiles: withProfiles,
+    totalFids,
+    totalImages
+  };
+}
+
+function imageFromIndex(
+  image: GalleryIndexImage,
+  likeSummary: Record<string, { count: number } | undefined>
+): PfpImage {
+  const mediumPathname = image.mediumPathname ?? image.pathname;
+  const thumbPathname = image.thumbPathname ?? mediumPathname;
+  const mediumUrl = objectUrlForPathname(mediumPathname);
+  const thumbUrl = objectUrlForPathname(thumbPathname);
+
+  return {
+    id: image.id,
+    filename: image.filename,
+    url: mediumUrl,
+    mediumUrl,
+    thumbUrl,
+    size: image.size,
+    storedAt: image.storedAt,
+    likeCount: likeSummary[image.id]?.count ?? 0
+  };
+}
+
+async function getGalleryIndex(): Promise<GalleryIndex | undefined> {
+  const now = Date.now();
+
+  if (galleryIndexCache && galleryIndexCache.expiresAt > now) {
+    return galleryIndexCache.promise;
+  }
+
+  const promise = fetchGalleryIndexUncached();
+  galleryIndexCache = {
+    expiresAt: now + GALLERY_INDEX_CACHE_TTL_MS,
+    promise
+  };
+
+  try {
+    return await promise;
+  } catch (error) {
+    galleryIndexCache = undefined;
+    const message = error instanceof Error ? error.message : "Unknown gallery index error";
+    console.warn(`Could not read gallery index: ${message}`);
+    return undefined;
+  }
+}
+
+async function fetchGalleryIndexUncached(): Promise<GalleryIndex | undefined> {
+  const s3 = s3Config();
+
+  if (s3) {
+    try {
+      const object = await s3.client.send(
+        new GetObjectCommand({
+          Bucket: s3.bucket,
+          Key: GALLERY_INDEX_PATH
+        })
+      );
+      const text = await object.Body?.transformToString();
+      const parsed = text ? (JSON.parse(text) as GalleryIndex) : undefined;
+      return isGalleryIndex(parsed) ? parsed : undefined;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown S3 read error";
+      const name = error instanceof Error ? error.name : "";
+
+      if (name === "NoSuchKey" || message.includes("NoSuchKey") || message.includes("404")) {
+        return undefined;
+      }
+
+      throw error;
+    }
+  }
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return undefined;
+  }
+
+  const blob = await get(GALLERY_INDEX_PATH, {
+    access: "public",
+    useCache: false
+  });
+
+  if (!blob || blob.statusCode !== 200) {
+    return undefined;
+  }
+
+  const text = await new Response(blob.stream).text();
+  const parsed = JSON.parse(text) as GalleryIndex;
+  return isGalleryIndex(parsed) ? parsed : undefined;
 }
 
 async function getScoreIndex(): Promise<Record<string, number>> {
@@ -674,6 +942,22 @@ function publicObjectUrl(
   return `${storage.endpoint.replace(/\/$/, "")}/${storage.bucket}/${pathname}`;
 }
 
+function objectUrlForPathname(pathname: string) {
+  const s3 = s3Config();
+
+  if (s3) {
+    return publicObjectUrl(s3, pathname);
+  }
+
+  const proxyBaseUrl = imageProxyBaseUrl();
+
+  if (proxyBaseUrl && pathname.startsWith("pfps/")) {
+    return `${proxyBaseUrl}/${pathname}`;
+  }
+
+  return pathname;
+}
+
 function imageProxyBaseUrl() {
   if (process.env.IMAGE_PROXY_DISABLED === "true") {
     return undefined;
@@ -728,6 +1012,10 @@ function compareTiles(
 
 function imageIdFor(fid: number, basename: string) {
   return `${fid}/${basename}`;
+}
+
+function isGalleryIndex(value: GalleryIndex | undefined): value is GalleryIndex {
+  return value?.version === 1 && Array.isArray(value.entries);
 }
 
 function storedAtFromFilename(filename: string) {

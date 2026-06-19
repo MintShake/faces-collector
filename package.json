@@ -15,7 +15,8 @@
     "monitor:hub": "tsx src/monitor-hub.ts",
     "web:dev": "npm --prefix web run dev -- -p 3001",
     "web:build": "npm --prefix web run build",
-    "enrich:neynar": "tsx scripts/enrich-neynar.ts"
+    "enrich:neynar": "tsx scripts/enrich-neynar.ts",
+    "index:gallery": "tsx scripts/rebuild-gallery-index.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1055.0",

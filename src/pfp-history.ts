@@ -13,6 +13,7 @@ import {
   updateCloudPfp,
   updateCloudProfileMetadata
 } from "./cloud-state.js";
+import { updateGalleryIndexFromPfpChange } from "./gallery-index.js";
 import type { FarcasterInteraction } from "./fid.js";
 import { createPfpVariants } from "./image-variants.js";
 
@@ -188,6 +189,7 @@ async function storeCloudPfpIfChanged(
     updatedAt: storedAt
   });
 
+  fireGalleryIndexUpdate(change);
   fireCloudEnrichment(interaction.fid);
 
   return change;
@@ -393,6 +395,12 @@ function fireCloudEnrichment(fid: number) {
   if (!config.neynarApiKey) return;
   enrichCloudProfilesWithNeynar([fid]).catch((err) => {
     console.warn(`Neynar enrichment failed for fid ${fid}:`, err instanceof Error ? err.message : err);
+  });
+}
+
+function fireGalleryIndexUpdate(change: PfpChange) {
+  updateGalleryIndexFromPfpChange(change).catch((err) => {
+    console.warn(`Gallery index update failed for fid ${change.fid}:`, err instanceof Error ? err.message : err);
   });
 }
 
