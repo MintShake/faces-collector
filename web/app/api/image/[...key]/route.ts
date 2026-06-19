@@ -4,6 +4,7 @@ import {
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
 import { logApiRequest } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,16 @@ type RouteContext = {
 
 export async function GET(request: Request, context: RouteContext) {
   const startedAt = Date.now();
+  const limited = await rateLimit(request, {
+    namespace: "image:proxy",
+    limit: 300,
+    windowSeconds: 60
+  });
+
+  if (limited) {
+    return limited;
+  }
+
   const { key: keyParts = [] } = await context.params;
   const key = keyParts.join("/");
 
@@ -38,7 +49,7 @@ export async function GET(request: Request, context: RouteContext) {
         Key: key
       })
     );
-    const body = await object.Body?.transformToByteArray();
+    const body = object.Body?.transformToWebStream();
 
     if (!body) {
       logApiRequest({ route: "image.proxy", request, startedAt, status: 404, imageKey: key, error: "empty_body" });
@@ -50,12 +61,13 @@ export async function GET(request: Request, context: RouteContext) {
       request,
       startedAt,
       imageKey: key,
-      count: body.byteLength
+      count: object.ContentLength
     });
 
     return new Response(body, {
       headers: {
         "content-type": object.ContentType ?? "image/webp",
+        ...(object.ContentLength ? { "content-length": String(object.ContentLength) } : {}),
         "cache-control": "public, max-age=31536000, immutable",
         "cdn-cache-control": "public, s-maxage=31536000, immutable",
         "vercel-cdn-cache-control": "public, s-maxage=31536000, immutable",

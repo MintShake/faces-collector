@@ -40,7 +40,7 @@
 | RAM | 512 MB | — |
 | Spin-down | After 15 min no inbound traffic | Hub monitor heartbeat (30s) keeps it alive |
 | Ephemeral disk | Yes — data lost on redeploy | All state in Tigris, safe |
-| Bandwidth | Shared pool | Low — collector sends small JSON payloads |
+| Bandwidth | Shared pool | Risky if public gallery is enabled — keep `COLLECTOR_PUBLIC_API=false` |
 
 **Next tier — Starter $7/mo:** Always on · 512 MB RAM · no spin-down risk
 

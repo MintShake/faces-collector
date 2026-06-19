@@ -11,6 +11,10 @@ services:
         value: "false"
       - key: BLOB_UPLOAD_ORIGINALS
         value: "false"
+      - key: COLLECTOR_PUBLIC_API
+        value: "false"
+      - key: MAX_PFP_DOWNLOAD_BYTES
+        value: "2500000"
       - key: HUB_RPC_ENDPOINT
         value: hub-grpc-api.neynar.com
       - key: HUB_PROFILE_REFRESH_INTERVAL_MS

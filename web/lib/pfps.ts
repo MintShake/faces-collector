@@ -82,10 +82,10 @@ type BlobListCacheEntry = {
   promise: Promise<ListedBlob[]>;
 };
 
-const BLOB_LIST_CACHE_TTL_MS = 120_000;
+const BLOB_LIST_CACHE_TTL_MS = 600_000;
 const blobListCache = new Map<string, BlobListCacheEntry>();
 const GALLERY_INDEX_PATH = "state/index/gallery.json";
-const GALLERY_INDEX_CACHE_TTL_MS = 60_000;
+const GALLERY_INDEX_CACHE_TTL_MS = 300_000;
 const STORAGE_READ_TIMEOUT_MS = 2_000;
 const PROFILE_READ_TIMEOUT_MS = 350;
 
@@ -996,6 +996,10 @@ function imageProxyBaseUrl() {
 
   if (process.env.IMAGE_PROXY_BASE_URL) {
     return process.env.IMAGE_PROXY_BASE_URL.replace(/\/$/, "");
+  }
+
+  if (process.env.IMAGE_PROXY_DISABLED !== "false") {
+    return undefined;
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";

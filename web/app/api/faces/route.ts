@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
   const limited = await rateLimit(request, {
     namespace: "faces:list",
-    limit: 90,
+    limit: 60,
     windowSeconds: 60
   });
 
@@ -19,9 +19,9 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const limit = clampNumber(url.searchParams.get("limit"), 1, 500, 100);
+  const limit = clampNumber(url.searchParams.get("limit"), 1, 50, 50);
   const offset = clampNumber(url.searchParams.get("offset"), 0, 100_000, 0);
-  const imagesPerFid = clampNumber(url.searchParams.get("imagesPerFid"), 1, 20, 5);
+  const imagesPerFid = clampNumber(url.searchParams.get("imagesPerFid"), 1, 4, 3);
   const sort = parseSort(url.searchParams.get("sort"));
   const order = parseOrder(url.searchParams.get("order"));
   const query = url.searchParams.get("q")?.trim();

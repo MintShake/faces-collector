@@ -16,8 +16,8 @@ type ApiRequestLog = {
   error?: string;
 };
 
-export const PUBLIC_API_CACHE_CONTROL = "public, s-maxage=600, stale-while-revalidate=3600";
-export const PUBLIC_API_BROWSER_CACHE_CONTROL = "public, max-age=60";
+export const PUBLIC_API_CACHE_CONTROL = "public, s-maxage=1800, stale-while-revalidate=86400";
+export const PUBLIC_API_BROWSER_CACHE_CONTROL = "public, max-age=120";
 
 export function corsHeaders(options: CorsHeaderOptions = {}) {
   return {
@@ -47,7 +47,7 @@ export function clampNumber(value: string | null, min: number, max: number, fall
 }
 
 export function logApiRequest(input: ApiRequestLog) {
-  if (process.env.API_REQUEST_LOGGING === "false") {
+  if (process.env.API_REQUEST_LOGGING !== "true") {
     return;
   }
 

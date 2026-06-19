@@ -16,8 +16,19 @@ if (!config.collectorSharedSecret) {
 }
 
 app.use(express.json({ limit: "1mb" }));
-app.use("/pfps", express.static(config.pfpStorageDir));
-app.use(express.static(publicDir));
+
+if (config.collectorPublicApi) {
+  app.use("/pfps", express.static(config.pfpStorageDir));
+  app.use(express.static(publicDir));
+} else {
+  app.get("/", (_req, res) => {
+    res.status(204).end();
+  });
+
+  app.use("/pfps", (_req, res) => {
+    res.status(404).json({ ok: false, error: "collector_public_api_disabled" });
+  });
+}
 
 app.get("/health", (_req, res) => {
   res.json({
@@ -38,13 +49,19 @@ app.get("/.well-known/appspecific/com.chrome.devtools.json", (_req, res) => {
   res.status(204).end();
 });
 
-app.get("/api/pfps", async (_req, res, next) => {
-  try {
-    res.json(await loadPfpGallery());
-  } catch (error) {
-    next(error);
-  }
-});
+if (config.collectorPublicApi) {
+  app.get("/api/pfps", async (_req, res, next) => {
+    try {
+      res.json(await loadPfpGallery());
+    } catch (error) {
+      next(error);
+    }
+  });
+} else {
+  app.get("/api/pfps", (_req, res) => {
+    res.status(410).json({ ok: false, error: "collector_public_api_disabled" });
+  });
+}
 
 app.post("/farcaster/interactions", requireCollectorSecret, collectorRateLimit, async (req, res, next) => {
   try {

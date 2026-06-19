@@ -6,9 +6,16 @@ import { rateLimit } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  if (process.env.ENABLE_PUBLIC_BLOB_LIST_API !== "true") {
+    return NextResponse.json(
+      { ok: false, error: "blob listing is disabled" },
+      { status: 404, headers: corsHeaders() }
+    );
+  }
+
   const limited = await rateLimit(request, {
     namespace: "blob:list",
-    limit: 20,
+    limit: 10,
     windowSeconds: 60
   });
 
@@ -18,7 +25,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const prefix = url.searchParams.get("prefix") ?? "";
-  const limit = clampNumber(url.searchParams.get("limit"), 1, 200, 100);
+  const limit = clampNumber(url.searchParams.get("limit"), 1, 50, 50);
   const cursor = url.searchParams.get("cursor") ?? undefined;
 
   if (!isAllowedPrefix(prefix)) {

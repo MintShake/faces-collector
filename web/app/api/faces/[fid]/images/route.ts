@@ -12,7 +12,7 @@ export async function GET(
   const startedAt = Date.now();
   const limited = await rateLimit(request, {
     namespace: "faces:images",
-    limit: 120,
+    limit: 60,
     windowSeconds: 60
   });
 
@@ -30,7 +30,7 @@ export async function GET(
   }
 
   const url = new URL(request.url);
-  const limit = clampNumber(url.searchParams.get("limit"), 1, 500, 100);
+  const limit = clampNumber(url.searchParams.get("limit"), 1, 100, 50);
   const offset = clampNumber(url.searchParams.get("offset"), 0, 100_000, 0);
   const tile = await getFidTile(numericFid);
 

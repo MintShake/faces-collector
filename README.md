@@ -65,6 +65,8 @@ COLLECTOR_SHARED_SECRET=generate-a-long-random-value
 
 When this is set, `/farcaster/interactions`, `/farcaster/profiles`, and `/internal/monitor-status` require `x-collector-secret` or `Authorization: Bearer ...`. The bundled monitors send the header automatically. The collector also rate-limits write endpoints and rejects PFP downloads that resolve to private network addresses or exceed `MAX_PFP_DOWNLOAD_BYTES`.
 
+Hosted collectors should keep `COLLECTOR_PUBLIC_API=false`. That disables the old public gallery endpoints (`/api/pfps`, `/pfps/*`, and the static frontend) so Render only handles health checks plus authenticated ingest traffic. The web app reads images from Tigris/S3 instead of using the collector as an image server. Set `COLLECTOR_PUBLIC_API=true` only for local debugging of the legacy static gallery.
+
 The web API has per-IP rate limiting. If `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured, limits are shared across serverless instances; otherwise local in-memory limits are used.
 
 ## Monitor Active Farcaster Users

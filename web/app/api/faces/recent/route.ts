@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
   const limited = await rateLimit(request, {
     namespace: "faces:recent",
-    limit: 90,
+    limit: 60,
     windowSeconds: 60
   });
 
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const limit = clampNumber(url.searchParams.get("limit"), 1, 200, 50);
+  const limit = clampNumber(url.searchParams.get("limit"), 1, 50, 50);
   const data = await getRecentPfpImages(limit);
   logApiRequest({
     route: "faces.recent",
