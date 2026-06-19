@@ -125,20 +125,20 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       .catch(() => {});
   }, [open]);
 
-  // ── balances ──────────────────────────────────────────────────────────────
+  // ── balances — always via Base RPC, FC wallet doesn't support eth_call ───
 
   useEffect(() => {
-    if (!open || !senderAddress || !ethProvider) return;
+    if (!open || !senderAddress) return;
     const addr = senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
 
     Promise.all([
-      ethProvider.request({ method: "eth_call", params: [{ to: FACES_TOKEN, data: "0x70a08231" + addr }, "latest"] }),
-      ethProvider.request({ method: "eth_call", params: [{ to: USDC_TOKEN,  data: "0x70a08231" + addr }, "latest"] }),
+      rpcCall(FACES_TOKEN, "0x70a08231" + addr),
+      rpcCall(USDC_TOKEN,  "0x70a08231" + addr),
     ]).then(([facesHex, usdcHex]) => {
-      setFacesBalance(BigInt((facesHex as string) || "0x0"));
-      setUsdcBalance(BigInt((usdcHex  as string) || "0x0"));
+      setFacesBalance(BigInt(facesHex || "0x0"));
+      setUsdcBalance(BigInt(usdcHex  || "0x0"));
     }).catch(() => {});
-  }, [open, senderAddress, ethProvider]);
+  }, [open, senderAddress]);
 
   // ── swap quote ─────────────────────────────────────────────────────────────
 
@@ -200,11 +200,12 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     setErrorMsg(undefined);
 
     try {
-      await switchToBase(ethProvider);
+      // FC wallet is already on Base and doesn't support chain switching.
+      if (!isMiniApp) await switchToBase(ethProvider);
 
-      // Re-check FACES balance.
+      // Re-check FACES balance via Base RPC (FC wallet doesn't support eth_call).
       const balData = "0x70a08231" + senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
-      const balHex  = await ethProvider.request({ method: "eth_call", params: [{ to: FACES_TOKEN, data: balData }, "latest"] }) as string;
+      const balHex  = await rpcCall(FACES_TOKEN, balData);
       const currentBalance = BigInt(balHex || "0x0");
       setFacesBalance(currentBalance);
 
@@ -227,7 +228,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
           const allowanceData = "0xdd62ed3e"
             + senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0")
             + quote.to.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
-          const allowHex  = await ethProvider.request({ method: "eth_call", params: [{ to: quote.approveToken, data: allowanceData }, "latest"] }) as string;
+          const allowHex  = await rpcCall(quote.approveToken, allowanceData);
           const allowance = BigInt(allowHex || "0x0");
           const needed    = BigInt(quote.approveAmount);
 
@@ -413,6 +414,16 @@ async function switchToBase(eth: EthereumProvider) {
       });
     } else { throw err; }
   }
+}
+
+async function rpcCall(to: string, data: string): Promise<string> {
+  const res = await fetch("https://mainnet.base.org", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to, data }, "latest"] }),
+  });
+  const json = await res.json() as { result?: string };
+  return json.result ?? "0x0";
 }
 
 function getInjected(): EthereumProvider | undefined {
