@@ -197,7 +197,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       const provider = await sdk.wallet.getEthereumProvider();
       if (!provider) return undefined;
       const eth = provider as unknown as EthereumProvider;
-      const accounts = await requestAccounts(eth, false);
+      const accounts = await requestAccounts(eth, true);
       if (!accounts[0]) return undefined;
       const address = accounts[0].toLowerCase();
       setSenderAddress(address);
@@ -358,26 +358,38 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
     setErrorMsg(undefined);
 
     try {
-      const senderWallet = senderAddress ?? await fetchPrimaryWallet(identity.fid).catch(() => undefined);
-      if (senderWallet) setSenderAddress(senderWallet);
-
-      const txHashes: string[] = [];
-      const sendResult = await sdk.actions.sendToken({
-        token: FACES_CAIP19,
-        amount: rawFacesAmount.toString(),
-        recipientFid: fid,
-      });
-
-      if (!sendResult.success) {
-        throw new Error(sendResult.error?.message ?? "Tip was not sent.");
+      if (!recipientAddress) {
+        throw new Error("No wallet address found for this profile.");
       }
 
-      txHashes.push(sendResult.send.transaction);
+      const activeWallet = await resolveActiveWallet();
+      if (!activeWallet) {
+        throw new Error("Farcaster wallet is not available in this client.");
+      }
+
+      const balance = await getFacesBalance(activeWallet.senderAddress).catch(() => null);
+      if (balance !== null) {
+        setFacesBalance(balance);
+        if (balance < rawFacesAmount) {
+          throw new Error("Not enough FACES. Tap Get FACES first, then try the tip again.");
+        }
+      }
+
+      const result = await sendTransactionWithBalanceFallback({
+        ethProvider: activeWallet.ethProvider,
+        transaction: {
+          from: activeWallet.senderAddress,
+          to: FACES_TOKEN,
+          data: encodeERC20Transfer(recipientAddress, rawFacesAmount)
+        },
+        recipientAddress,
+        expectedDelta: rawFacesAmount
+      });
 
       const tipMessage = buildTipMessage({
         amount,
         recipientName,
-        senderName: senderDisplayName(identity, senderWallet ?? ""),
+        senderName: senderDisplayName(identity, activeWallet.senderAddress),
       });
 
       setStatus("sent");
@@ -390,8 +402,8 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
           subjectFid: fid,
           subjectDisplayName: recipientName,
           amount,
-          actorAddress: senderWallet,
-          txHash: txHashes.at(-1),
+          actorAddress: activeWallet.senderAddress,
+          txHash: result.txHash,
           message: tipMessage
         }),
       }).catch(() => {});
