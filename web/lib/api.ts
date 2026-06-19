@@ -16,8 +16,8 @@ type ApiRequestLog = {
   error?: string;
 };
 
-export const PUBLIC_API_CACHE_CONTROL = "public, s-maxage=30, stale-while-revalidate=300";
-export const PUBLIC_API_BROWSER_CACHE_CONTROL = "public, max-age=15";
+export const PUBLIC_API_CACHE_CONTROL = "public, s-maxage=600, stale-while-revalidate=3600";
+export const PUBLIC_API_BROWSER_CACHE_CONTROL = "public, max-age=60";
 
 export function corsHeaders(options: CorsHeaderOptions = {}) {
   return {
