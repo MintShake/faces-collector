@@ -152,11 +152,7 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
       return v;
     };
 
-    if (!text) {
-      // No profile file yet — fetch name from Neynar/Warpcast and store it.
-      void fetchAndStoreProfile(fid, s3, undefined);
-      return cache(undefined);
-    }
+    if (!text) return cache(undefined);
 
     const profile = JSON.parse(text) as FidProfile;
     const result: FidProfile = {
@@ -178,19 +174,12 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
       neynarEnrichedAt: profile.neynarEnrichedAt
     };
 
-    // If name is missing, enrich in the background and update storage.
-    if (!result.username && !result.displayName) {
-      void fetchAndStoreProfile(fid, s3, result);
-    }
-
     return cache(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown profile read error";
 
     if (message.includes("NoSuchKey") || message.includes("404")) {
       profileCache.set(fid, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, value: undefined });
-      // Fire-and-forget: fetch name and create the profile file.
-      void fetchAndStoreProfile(fid, s3Config()!, undefined);
       return undefined;
     }
 
@@ -199,68 +188,68 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
   }
 }
 
-async function fetchAndStoreProfile(
-  fid: number,
-  s3: NonNullable<ReturnType<typeof s3Config>>,
-  existing: FidProfile | undefined
-) {
-  try {
-    let username: string | undefined;
-    let displayName: string | undefined;
-    let pfpUrl: string | undefined;
+async function bulkEnrichProfiles(fids: number[]) {
+  const s3 = s3Config();
+  if (!s3) return;
 
-    const neynarKey = process.env.NEYNAR_API_KEY;
-    if (neynarKey) {
-      const res = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
-        { headers: { accept: "application/json", "x-api-key": neynarKey } }
-      );
-      if (res.ok) {
-        const data = await res.json() as { users?: Array<{ username?: string; display_name?: string; pfp_url?: string }> };
-        const u = data.users?.[0];
-        username    = u?.username;
-        displayName = u?.display_name;
-        pfpUrl      = u?.pfp_url;
-      }
+  const neynarKey = process.env.NEYNAR_API_KEY;
+  type NeynarUser = { fid: number; username?: string; display_name?: string; pfp_url?: string };
+  const enriched = new Map<number, { username?: string; displayName?: string; pfpUrl?: string }>();
+
+  // Neynar bulk endpoint — up to 100 FIDs per call.
+  if (neynarKey) {
+    for (let i = 0; i < fids.length; i += 100) {
+      const batch = fids.slice(i, i + 100);
+      try {
+        const res = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/bulk?fids=${batch.join(",")}`,
+          { headers: { accept: "application/json", "x-api-key": neynarKey } }
+        );
+        if (res.ok) {
+          const data = await res.json() as { users?: NeynarUser[] };
+          for (const u of data.users ?? []) {
+            enriched.set(u.fid, { username: u.username, displayName: u.display_name, pfpUrl: u.pfp_url });
+          }
+        }
+      } catch { /* skip batch on error */ }
     }
+  }
 
-    // Fallback: Warpcast public API (no key needed).
-    if (!username && !displayName) {
+  // For any FIDs Neynar didn't return, fall back to Warpcast one-by-one.
+  const missing = fids.filter((f) => !enriched.has(f));
+  await Promise.all(missing.map(async (fid) => {
+    try {
       const res = await fetch(`https://api.warpcast.com/v2/user?fid=${fid}`);
       if (res.ok) {
         const data = await res.json() as { result?: { user?: { username?: string; displayName?: string; pfp?: { url?: string } } } };
         const u = data.result?.user;
-        username    = u?.username;
-        displayName = u?.displayName;
-        pfpUrl      = u?.pfp?.url;
+        if (u?.username || u?.displayName) {
+          enriched.set(fid, { username: u.username, displayName: u.displayName, pfpUrl: u.pfp?.url });
+        }
       }
-    }
+    } catch { /* ignore */ }
+  }));
 
-    if (!username && !displayName) return;
-
-    const merged = {
-      ...(existing ?? {}),
-      fid,
-      username:    username    ?? existing?.username,
-      displayName: displayName ?? existing?.displayName,
-      pfpUrl:      pfpUrl      ?? existing?.pfpUrl,
-    };
-
-    await s3.client.send(new PutObjectCommand({
-      Bucket: s3.bucket,
-      Key: `state/fids/${fid}.json`,
-      Body: JSON.stringify(merged),
-      ContentType: "application/json",
-    }));
-
-    // Update in-memory cache so next read within this instance is warm.
-    profileCache.set(fid, {
-      expiresAt: Date.now() + PROFILE_CACHE_TTL_MS,
-      value: merged as FidProfile,
-    });
-  } catch {
-    // Non-critical — silently ignore enrichment failures.
-  }
+  // Write enriched profiles back to storage and update cache.
+  await Promise.all([...enriched.entries()].map(async ([fid, names]) => {
+    try {
+      const existing = profileCache.get(fid)?.value;
+      const merged: FidProfile = {
+        ...(existing ?? { fid }),
+        fid,
+        username:    names.username    ?? existing?.username,
+        displayName: names.displayName ?? existing?.displayName,
+        pfpUrl:      names.pfpUrl      ?? existing?.pfpUrl,
+      };
+      await s3.client.send(new PutObjectCommand({
+        Bucket: s3.bucket,
+        Key: `state/fids/${fid}.json`,
+        Body: JSON.stringify(merged),
+        ContentType: "application/json",
+      }));
+      profileCache.set(fid, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, value: merged });
+    } catch { /* ignore */ }
+  }));
 }
 
 export async function getRecentPfpImages(limit = 50) {
@@ -451,6 +440,19 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
       return profile ? { ...tile, profile } : (tile as FidTile);
     })
   );
+
+  // Bulk-enrich any tiles still missing a name — awaited so writes complete before response.
+  const unnamed = withProfiles.filter((t) => !t.profile?.username && !t.profile?.displayName);
+  if (unnamed.length > 0) {
+    await bulkEnrichProfiles(unnamed.map((t) => t.fid));
+    // Re-read enriched profiles from cache and merge into tiles.
+    for (const tile of withProfiles) {
+      if (!tile.profile?.username && !tile.profile?.displayName) {
+        const cached = profileCache.get(tile.fid);
+        if (cached?.value) tile.profile = cached.value;
+      }
+    }
+  }
 
   return withProfiles;
 }
