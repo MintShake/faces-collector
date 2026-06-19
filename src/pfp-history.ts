@@ -163,11 +163,6 @@ async function storeCloudPfpIfChanged(
 
   const storedAt = new Date().toISOString();
   const basename = `${storedAt.replace(/[:.]/g, "-")}-${sha256.slice(0, 16)}`;
-  const blob = await uploadVariantsToBlob({
-    fid: interaction.fid,
-    basename,
-    body: image.body
-  });
   const change: PfpChange = {
     fid: interaction.fid,
     url: interaction.pfpUrl,
@@ -175,24 +170,41 @@ async function storeCloudPfpIfChanged(
     contentType: image.contentType,
     byteLength: image.body.byteLength,
     storedAt,
-    blob,
     previousSha256: stored?.pfpSha256,
     sourceEventType: interaction.eventType,
     sourceReceivedAt: interaction.receivedAt
   };
+  let notificationQueued = false;
+  const notifyOnce = () => {
+    if (notificationQueued) return;
+    notificationQueued = true;
+    fireProfileImageNotification(change, interaction);
+  };
 
-  await updateCloudPfp({
-    fid: interaction.fid,
-    pfpUrl: interaction.pfpUrl,
-    pfpSha256: sha256,
-    blob,
-    seenAt: interaction.receivedAt,
-    updatedAt: storedAt
-  });
+  try {
+    const blob = await uploadVariantsToBlob({
+      fid: interaction.fid,
+      basename,
+      body: image.body
+    });
+    change.blob = blob;
+
+    await updateCloudPfp({
+      fid: interaction.fid,
+      pfpUrl: interaction.pfpUrl,
+      pfpSha256: sha256,
+      blob,
+      seenAt: interaction.receivedAt,
+      updatedAt: storedAt
+    });
+  } catch (error) {
+    notifyOnce();
+    throw error;
+  }
 
   fireGalleryIndexUpdate(change);
   fireCloudEnrichment(interaction.fid);
-  fireProfileImageNotification(change, interaction);
+  notifyOnce();
 
   return change;
 }

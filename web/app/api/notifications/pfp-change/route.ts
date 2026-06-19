@@ -18,7 +18,10 @@ export async function POST(request: Request) {
   const secret = process.env.FACES_NOTIFICATION_SECRET ?? process.env.COLLECTOR_SHARED_SECRET;
 
   if (!secret) {
-    return NextResponse.json({ ok: false, error: "FACES_NOTIFICATION_SECRET is required" }, { status: 503 });
+    return NextResponse.json(
+      { ok: false, error: "FACES_NOTIFICATION_SECRET or COLLECTOR_SHARED_SECRET is required" },
+      { status: 503 }
+    );
   }
 
   if (request.headers.get("x-faces-notification-secret") !== secret) {
