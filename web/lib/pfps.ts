@@ -999,10 +999,6 @@ function imageProxyBaseUrl() {
     return process.env.IMAGE_PROXY_BASE_URL.replace(/\/$/, "");
   }
 
-  if (process.env.IMAGE_PROXY_DISABLED !== "false") {
-    return undefined;
-  }
-
   return `${APP_URL}/api/image`;
 }
 

@@ -53,7 +53,7 @@ TIGRIS_SECRET_ACCESS_KEY=tsec_...
 TIGRIS_PUBLIC_BASE_URL=
 ```
 
-The same values need to exist in both Render for the collector and Vercel for the web app. Make the bucket public for image serving. If Tigris gives you a public bucket URL or you add a custom image domain, put it in `TIGRIS_PUBLIC_BASE_URL`; otherwise the app serves public objects through `https://t3.storage.dev/<bucket>/<key>`. B2 and generic S3-compatible variables are still supported as fallbacks.
+The same values need to exist in both Render for the collector and Vercel for the web app. The web app serves public profile images through `/api/image/pfps/...` by default so browsers do not talk directly to the storage host. If you add a trusted CDN/custom image domain, put it in `IMAGE_PROXY_BASE_URL`; only set `IMAGE_PROXY_DISABLED=true` if you intentionally want browsers to load directly from `TIGRIS_PUBLIC_BASE_URL` or the raw storage endpoint. B2 and generic S3-compatible variables are still supported as fallbacks.
 
 Kafka is optional. Set `KAFKA_ENABLED=true` to emit Kafka events; leave it false for the lightweight hosted collector path that only uses SQLite and Vercel Blob.
 
