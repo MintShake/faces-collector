@@ -43,6 +43,7 @@ export async function GET(request: Request) {
         stats,
         heroImages: recentChanges.slice(0, 5).map((item) => item.image),
         recentChanges,
+        recentTiles: recentPage.tiles,
         topTiles: topPage.tiles
       }
     },

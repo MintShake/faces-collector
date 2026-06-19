@@ -7,13 +7,12 @@ import { FidCard } from "./fid-card";
 import { SafeImage } from "./safe-image";
 
 type Stats = { totalFids: number; totalImages: number; totalLikes: number };
-type RecentChange = { fid: number; profile?: FidTile["profile"]; image: PfpImage };
 type HomeResponse = {
   ok: boolean;
   data: {
     stats: Stats;
     heroImages: PfpImage[];
-    recentChanges: RecentChange[];
+    recentTiles: FidTile[];
     topTiles: FidTile[];
   };
 };
@@ -52,14 +51,14 @@ export function HeroStack() {
 
 export function HomeData() {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [recentChanges, setRecentChanges] = useState<RecentChange[]>([]);
+  const [recentTiles, setRecentTiles] = useState<FidTile[]>([]);
   const [topTiles, setTopTiles] = useState<FidTile[]>([]);
 
   useEffect(() => {
     fetchHomePayload()
       .then((d: HomeResponse) => {
         setStats(d.data.stats);
-        setRecentChanges(d.data.recentChanges);
+        setRecentTiles(d.data.recentTiles);
         setTopTiles(d.data.topTiles);
       })
       .catch(() => {});
@@ -84,19 +83,15 @@ export function HomeData() {
         </div>
       )}
 
-      {recentChanges.length > 0 && (
+      {recentTiles.length > 0 && (
         <section className="homeSection">
           <div className="sectionHeading">
             <h2>Latest changes</h2>
             <Link className="textButton" href="/browse">See all</Link>
           </div>
-          <div className="changeRail">
-            {recentChanges.map(({ fid, profile, image }) => (
-              <Link key={image.id} className="changeCard" href={`/fid/${fid}`}>
-                <SafeImage src={image.thumbUrl ?? image.url} alt="" loading="lazy" decoding="async" />
-                <strong>{profile?.displayName ?? profile?.username ?? `FID ${fid}`}</strong>
-                <span>{formatDate(image.storedAt)}</span>
-              </Link>
+          <div className="tileGrid">
+            {recentTiles.map((tile) => (
+              <FidCard key={tile.fid} tile={tile} compact />
             ))}
           </div>
         </section>
@@ -117,13 +112,4 @@ export function HomeData() {
       )}
     </>
   );
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
 }
