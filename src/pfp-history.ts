@@ -125,6 +125,7 @@ export async function storePfpIfChanged(
   });
 
   fireLocalEnrichment(interaction.fid);
+  fireProfileImageNotification(change, interaction);
 
   return change;
 }
@@ -191,6 +192,7 @@ async function storeCloudPfpIfChanged(
 
   fireGalleryIndexUpdate(change);
   fireCloudEnrichment(interaction.fid);
+  fireProfileImageNotification(change, interaction);
 
   return change;
 }
@@ -430,6 +432,32 @@ function fireLocalEnrichment(fid: number) {
     .catch((err) => {
       console.warn(`Local Neynar enrichment failed for fid ${fid}:`, err instanceof Error ? err.message : err);
     });
+}
+
+function fireProfileImageNotification(change: PfpChange, interaction: FarcasterInteraction) {
+  if (!config.facesWebUrl) return;
+
+  const url = new URL("/api/notifications/pfp-change", config.facesWebUrl);
+  const headers: Record<string, string> = {
+    "content-type": "application/json"
+  };
+
+  if (config.facesNotificationSecret) {
+    headers["x-faces-notification-secret"] = config.facesNotificationSecret;
+  }
+
+  fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      fid: change.fid,
+      username: interaction.username,
+      displayName: interaction.displayName
+    }),
+    signal: AbortSignal.timeout(8_000)
+  }).catch((err) => {
+    console.warn(`Profile image notification failed for fid ${change.fid}:`, err instanceof Error ? err.message : err);
+  });
 }
 
 function extensionFor(contentType: string, url: string) {

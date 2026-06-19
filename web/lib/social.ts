@@ -49,6 +49,11 @@ type LikeSummaryFile = {
   updatedAt: string;
 };
 
+type RegisteredUserIndex = {
+  fids: number[];
+  updatedAt: string;
+};
+
 export type ReportReason = "not_me" | "offensive" | "outdated" | "other" | "owner_remove";
 
 export type PendingReport = {
@@ -116,6 +121,7 @@ export type SnapMatchupVoteRecord = {
 
 const ACTIVITY_LOG_KEY = "social/activity-log.json";
 const ACTIVITY_LOG_MAX = 60;
+const REGISTERED_USERS_INDEX_KEY = "social/users/index.json";
 const SNAP_MATCHUP_PREFIX = "social/snaps/matchups";
 const MODERATION_QUEUE_KEY = "social/moderation/pending-reports.json";
 const MODERATION_QUEUE_CACHE_TTL_MS = 30_000;
@@ -286,11 +292,40 @@ export async function registerMiniAppUser(input: {
   };
 
   await putJson(userPath(input.fid), updated);
+  await addRegisteredUserToIndex(input.fid);
   return updated;
 }
 
 export async function getRegisteredUser(fid: number) {
   return safeGetJson<RegisteredUser>(userPath(fid));
+}
+
+export async function setMiniAppUserNotifications(input: {
+  fid: number;
+  notificationDetails?: NotificationDetails;
+}) {
+  const existing = await getRegisteredUser(input.fid);
+
+  if (!existing) {
+    return undefined;
+  }
+
+  const updated: RegisteredUser = {
+    ...existing,
+    notificationDetails: input.notificationDetails,
+    updatedAt: new Date().toISOString()
+  };
+
+  await putJson(userPath(input.fid), updated);
+  await addRegisteredUserToIndex(input.fid);
+  return updated;
+}
+
+export async function getRegisteredUsers() {
+  const index = await safeGetJson<RegisteredUserIndex>(REGISTERED_USERS_INDEX_KEY);
+  const fids = index?.fids ?? [];
+  const users = await Promise.all(fids.map((fid) => getRegisteredUser(fid)));
+  return users.filter((user): user is RegisteredUser => Boolean(user));
 }
 
 export async function getPendingReportMap() {
@@ -457,6 +492,41 @@ export async function notifyTipRecipient(input: {
   return { sent: true };
 }
 
+export async function notifyProfileImageChange(input: {
+  recipient: RegisteredUser;
+  changedFid: number;
+  changedName?: string;
+  targetUrl: string;
+}) {
+  const details = input.recipient.notificationDetails;
+
+  if (!details) {
+    return { sent: false, reason: "recipient-not-registered" };
+  }
+
+  const name = input.changedName?.slice(0, 48) || `FID ${input.changedFid}`;
+  const response = await fetch(details.url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      notificationId: `pfp-${input.changedFid}-${Date.now()}`.slice(0, 128),
+      title: "New profile image",
+      body: `${name} changed their profile image.`,
+      targetUrl: input.targetUrl,
+      tokens: [details.token]
+    }),
+    signal: AbortSignal.timeout(10_000)
+  });
+
+  if (!response.ok) {
+    return { sent: false, reason: `${response.status} ${await response.text()}` };
+  }
+
+  return { sent: true };
+}
+
 async function updateLikeSummary(record: ImageLikeRecord) {
   likeSummaryCache = undefined;
   const now = new Date().toISOString();
@@ -479,6 +549,22 @@ async function updateLikeSummary(record: ImageLikeRecord) {
 
   summary.updatedAt = now;
   await putJson("social/likes-summary.json", summary);
+}
+
+async function addRegisteredUserToIndex(fid: number) {
+  const now = new Date().toISOString();
+  const index = (await safeGetJson<RegisteredUserIndex>(REGISTERED_USERS_INDEX_KEY)) ?? {
+    fids: [],
+    updatedAt: now
+  };
+
+  if (!index.fids.includes(fid)) {
+    index.fids.push(fid);
+    index.fids.sort((a, b) => a - b);
+  }
+
+  index.updatedAt = now;
+  await putJson(REGISTERED_USERS_INDEX_KEY, index);
 }
 
 async function getJson<T>(key: string): Promise<T | undefined> {
