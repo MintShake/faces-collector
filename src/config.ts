@@ -22,7 +22,7 @@ export const config = {
   maxPfpDownloadBytes: Number(process.env.MAX_PFP_DOWNLOAD_BYTES ?? 5_000_000),
   collectorUrl: process.env.COLLECTOR_URL ?? "http://localhost:3000",
   facesWebUrl: process.env.FACES_WEB_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://web-sigma-three-32.vercel.app",
-  facesNotificationSecret: process.env.FACES_NOTIFICATION_SECRET,
+  facesNotificationSecret: process.env.FACES_NOTIFICATION_SECRET ?? process.env.COLLECTOR_SHARED_SECRET,
   neynarApiKey: process.env.NEYNAR_API_KEY,
   neynarFeedUrl:
     process.env.NEYNAR_FEED_URL ?? "https://api.neynar.com/v2/farcaster/feed/",

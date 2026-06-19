@@ -14,7 +14,7 @@ type PfpChangeBody = {
 };
 
 export async function POST(request: Request) {
-  const secret = process.env.FACES_NOTIFICATION_SECRET;
+  const secret = process.env.FACES_NOTIFICATION_SECRET ?? process.env.COLLECTOR_SHARED_SECRET;
 
   if (!secret) {
     return NextResponse.json({ ok: false, error: "FACES_NOTIFICATION_SECRET is required" }, { status: 503 });
