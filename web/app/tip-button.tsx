@@ -31,6 +31,13 @@ type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 };
 
+type TransactionRequest = {
+  from: string;
+  to: string;
+  data: string;
+  value?: string;
+};
+
 type LabeledAddress = {
   address: string;
   label: string;
@@ -215,11 +222,13 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       let txHash: string | undefined;
 
       if (currentBalance >= rawFacesAmount) {
-        const result = await ethProvider.request({
-          method: "eth_sendTransaction",
-          params: [{ from: senderAddress, to: FACES_TOKEN, data: encodeERC20Transfer(recipientAddress, rawFacesAmount) }],
+        const result = await sendTransactionWithBalanceFallback({
+          ethProvider,
+          transaction: { from: senderAddress, to: FACES_TOKEN, data: encodeERC20Transfer(recipientAddress, rawFacesAmount) },
+          recipientAddress,
+          expectedDelta: rawFacesAmount
         });
-        txHash = typeof result === "string" ? result : undefined;
+        txHash = result.txHash;
       } else {
         let quote = swapQuote;
         if (!quote) {
@@ -251,11 +260,13 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
           }
         }
 
-        const result = await ethProvider.request({
-          method: "eth_sendTransaction",
-          params: [{ from: senderAddress, to: quote.to, data: quote.calldata, value: quote.value }],
+        const result = await sendTransactionWithBalanceFallback({
+          ethProvider,
+          transaction: { from: senderAddress, to: quote.to, data: quote.calldata, value: quote.value },
+          recipientAddress,
+          expectedDelta: (rawFacesAmount * 98n) / 100n
         });
-        txHash = typeof result === "string" ? result : undefined;
+        txHash = result.txHash;
       }
 
       const tipMessage = buildTipMessage({
@@ -269,6 +280,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       fetch("/api/activity", {
         method: "POST",
         headers: { "content-type": "application/json" },
+        keepalive: true,
         body: JSON.stringify({
           subjectFid: fid,
           subjectDisplayName: recipientName,
@@ -455,6 +467,55 @@ async function rpcCall(to: string, data: string): Promise<string> {
   });
   const json = await res.json() as { result?: string };
   return json.result ?? "0x0";
+}
+
+async function sendTransactionWithBalanceFallback({
+  ethProvider,
+  transaction,
+  recipientAddress,
+  expectedDelta
+}: {
+  ethProvider: EthereumProvider;
+  transaction: TransactionRequest;
+  recipientAddress: string;
+  expectedDelta: bigint;
+}) {
+  const before = await getFacesBalance(recipientAddress);
+  const txPromise = ethProvider.request({
+    method: "eth_sendTransaction",
+    params: [transaction],
+  }).then((result) => ({
+    txHash: typeof result === "string" && /^0x[a-fA-F0-9]{64}$/.test(result) ? result : undefined
+  }));
+  const balancePromise = waitForRecipientBalanceIncrease(recipientAddress, before, expectedDelta)
+    .then(() => ({ txHash: undefined }));
+
+  return Promise.race([txPromise, balancePromise]);
+}
+
+async function waitForRecipientBalanceIncrease(recipientAddress: string, before: bigint, expectedDelta: bigint) {
+  const deadline = Date.now() + 90_000;
+  const target = before + expectedDelta;
+
+  while (Date.now() < deadline) {
+    await delay(3_000);
+    const current = await getFacesBalance(recipientAddress).catch(() => before);
+
+    if (current >= target) {
+      return;
+    }
+  }
+
+  throw new Error("Transaction submitted, but Faces could not confirm the received balance yet. Check your wallet activity and try refreshing.");
+}
+
+async function getFacesBalance(address: string) {
+  const data = "0x70a08231" + address.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
+  return BigInt(await rpcCall(FACES_TOKEN, data) || "0x0");
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function getInjected(): EthereumProvider | undefined {
