@@ -45,7 +45,7 @@ type LabeledAddress = {
 };
 
 export function TipButton({ fid, recipientName }: { fid: number; recipientName: string }) {
-  const { identity, isMiniApp, openConnect } = useFacesAuth();
+  const { identity, isMiniApp, openConnect, openWalletModal } = useFacesAuth();
   const { walletProvider } = useWeb3ModalProvider();
 
   const [open, setOpen]         = useState(false);
@@ -188,14 +188,48 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
   // ── send ──────────────────────────────────────────────────────────────────
 
+  async function resolveActiveWallet() {
+    if (isMiniApp) {
+      const provider = await sdk.wallet.getEthereumProvider();
+      if (!provider) return undefined;
+      const eth = provider as unknown as EthereumProvider;
+      const accounts = await requestAccounts(eth, false);
+      if (!accounts[0]) return undefined;
+      const address = accounts[0].toLowerCase();
+      setSenderAddress(address);
+      setEthProvider(eth);
+      return { ethProvider: eth, senderAddress: address };
+    }
+
+    const provider = (walletProvider ?? getInjected()) as EthereumProvider | undefined;
+    if (!provider) return undefined;
+    const accounts = await requestAccounts(provider, true);
+    if (!accounts[0]) return undefined;
+    const address = accounts[0].toLowerCase();
+    setSenderAddress(address);
+    setEthProvider(provider);
+    return { ethProvider: provider, senderAddress: address };
+  }
+
   async function handleSend() {
     if (!identity) { openConnect(); return; }
 
-    if (!ethProvider || !senderAddress) {
+    const activeWallet = await resolveActiveWallet().catch((error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (isDisconnectedProviderError(msg)) {
+        setErrorMsg("Wallet disconnected. Reconnect your wallet, then try the tip again.");
+      } else {
+        setErrorMsg(msg.length < 120 ? msg : "Wallet connection failed. Reconnect and try again.");
+      }
+      setStatus("error");
+      return undefined;
+    });
+
+    if (!activeWallet) {
       if (isMiniApp) {
         setErrorMsg("Wallet not available in this Farcaster client.");
       } else {
-        openConnect();
+        openWalletModal();
       }
       return;
     }
@@ -211,10 +245,10 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
     try {
       // FC wallet is already on Base and doesn't support chain switching.
-      if (!isMiniApp) await switchToBase(ethProvider);
+      if (!isMiniApp) await switchToBase(activeWallet.ethProvider);
 
       // Re-check FACES balance via Base RPC (FC wallet doesn't support eth_call).
-      const balData = "0x70a08231" + senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
+      const balData = "0x70a08231" + activeWallet.senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
       const balHex  = await rpcCall(FACES_TOKEN, balData);
       const currentBalance = BigInt(balHex || "0x0");
       setFacesBalance(currentBalance);
@@ -223,8 +257,8 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
       if (currentBalance >= rawFacesAmount) {
         const result = await sendTransactionWithBalanceFallback({
-          ethProvider,
-          transaction: { from: senderAddress, to: FACES_TOKEN, data: encodeERC20Transfer(recipientAddress, rawFacesAmount) },
+          ethProvider: activeWallet.ethProvider,
+          transaction: { from: activeWallet.senderAddress, to: FACES_TOKEN, data: encodeERC20Transfer(recipientAddress, rawFacesAmount) },
           recipientAddress,
           expectedDelta: rawFacesAmount
         });
@@ -241,7 +275,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
         if (quote.approveToken && quote.approveAmount) {
           const allowanceData = "0xdd62ed3e"
-            + senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0")
+            + activeWallet.senderAddress.replace(/^0x/i, "").toLowerCase().padStart(64, "0")
             + quote.to.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
           const allowHex  = await rpcCall(quote.approveToken, allowanceData);
           const allowance = BigInt(allowHex || "0x0");
@@ -252,17 +286,17 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
             const approveData = "0x095ea7b3"
               + quote.to.replace(/^0x/i, "").toLowerCase().padStart(64, "0")
               + needed.toString(16).padStart(64, "0");
-            await ethProvider.request({
+            await activeWallet.ethProvider.request({
               method: "eth_sendTransaction",
-              params: [{ from: senderAddress, to: quote.approveToken, data: approveData }],
+              params: [{ from: activeWallet.senderAddress, to: quote.approveToken, data: approveData }],
             });
             setStatus("pending");
           }
         }
 
         const result = await sendTransactionWithBalanceFallback({
-          ethProvider,
-          transaction: { from: senderAddress, to: quote.to, data: quote.calldata, value: quote.value },
+          ethProvider: activeWallet.ethProvider,
+          transaction: { from: activeWallet.senderAddress, to: quote.to, data: quote.calldata, value: quote.value },
           recipientAddress,
           expectedDelta: (rawFacesAmount * 98n) / 100n
         });
@@ -272,7 +306,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       const tipMessage = buildTipMessage({
         amount,
         recipientName,
-        senderName: senderDisplayName(identity, senderAddress),
+        senderName: senderDisplayName(identity, activeWallet.senderAddress),
       });
 
       setStatus("sent");
@@ -285,7 +319,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
           subjectFid: fid,
           subjectDisplayName: recipientName,
           amount,
-          actorAddress: senderAddress,
+          actorAddress: activeWallet.senderAddress,
           txHash,
           message: tipMessage
         }),
@@ -299,6 +333,9 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
         setStatus("idle");
+      } else if (isDisconnectedProviderError(msg)) {
+        setErrorMsg("Wallet disconnected. Reconnect your wallet, then try the tip again.");
+        setStatus("error");
       } else {
         setErrorMsg(msg.length < 120 ? msg : "Transaction failed — check your wallet and try again.");
         setStatus("error");
@@ -459,6 +496,12 @@ async function switchToBase(eth: EthereumProvider) {
   }
 }
 
+async function requestAccounts(eth: EthereumProvider, canPrompt: boolean) {
+  const existing = await eth.request({ method: "eth_accounts" }).catch(() => []) as string[];
+  if (existing[0] || !canPrompt) return existing;
+  return await eth.request({ method: "eth_requestAccounts" }) as string[];
+}
+
 async function rpcCall(to: string, data: string): Promise<string> {
   const res = await fetch("https://mainnet.base.org", {
     method: "POST",
@@ -541,4 +584,12 @@ function buildTipMessage(input: { amount: number; recipientName: string; senderN
 
 function shortenAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function isDisconnectedProviderError(message: string) {
+  const lower = message.toLowerCase();
+  return lower.includes("provider is disconnected") ||
+    lower.includes("disconnected from all chains") ||
+    lower.includes("code: 4900") ||
+    lower.includes("4900");
 }
