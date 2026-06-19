@@ -6,11 +6,12 @@ import { ActivityFeed } from "./activity-feed";
 import { FidCard } from "./fid-card";
 import { SafeImage } from "./safe-image";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [tilesRaw, topTilesRaw, stats, activityEvents] = await Promise.all([
-    getPfpGallery({ limit: 240, imagesPerFid: 5, sort: "newest" }),
+  // Run gallery first so blob list is cached before the second call.
+  const tilesRaw = await getPfpGallery({ limit: 240, imagesPerFid: 5, sort: "newest" });
+  const [topTilesRaw, stats, activityEvents] = await Promise.all([
     getPfpGallery({ limit: 8, imagesPerFid: 5, sort: "count" }),
     getPfpStats(),
     getActivityLog(),

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { GalleryControls } from "../gallery-controls";
 import { getPfpGallery, getPfpStats } from "@/lib/pfps";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function BrowsePage() {
   const [tiles, stats] = await Promise.all([
