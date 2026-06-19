@@ -7,7 +7,10 @@ import { useFacesAuth } from "./auth-context";
 
 const FACES_TOKEN = "0xa199Ab829b992FD357E40F1E91be724D7273aa82";
 const USDC_TOKEN  = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const FACES_CAIP19 = `eip155:8453/erc20:${FACES_TOKEN}`;
+const USDC_CAIP19  = `eip155:8453/erc20:${USDC_TOKEN}`;
 const TOKEN_DECIMALS = 18n;
+const USDC_DECIMALS = 6n;
 const PRESETS = [10, 25, 50, 100];
 const BASE_CHAIN_ID = "0x2105"; // 8453
 
@@ -80,13 +83,12 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
     async function resolve() {
       if (isMiniApp) {
-        const provider = await sdk.wallet.getEthereumProvider();
-        if (!provider) return;
-        const eth = provider as unknown as EthereumProvider;
-        const accounts = await eth.request({ method: "eth_accounts" }) as string[];
-        if (accounts[0]) {
-          setSenderAddress(accounts[0].toLowerCase());
-          setEthProvider(eth);
+        if (identity?.kind === "farcaster") {
+          const res = await fetch(`/api/faces/${identity.fid}/wallet`);
+          const data = await res.json() as { ok: boolean; addresses?: string[] };
+          if (data.ok && data.addresses?.[0]) {
+            setSenderAddress(data.addresses[0].toLowerCase());
+          }
         }
       } else if (identity?.kind === "wallet") {
         const provider = (walletProvider ?? getInjected()) as EthereumProvider | undefined;
@@ -111,13 +113,15 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
         if (data.ok && data.addresses?.[0]) {
           setRecipientAddress(data.addresses[0]);
           setLabeledAddresses(data.labeled ?? []);
-        } else {
+        } else if (!isMiniApp) {
           setErrorMsg("This profile hasn't linked a wallet to Farcaster.");
         }
       })
-      .catch(() => setErrorMsg("Could not look up wallet address."))
+      .catch(() => {
+        if (!isMiniApp) setErrorMsg("Could not look up wallet address.");
+      })
       .finally(() => setAddressLoading(false));
-  }, [open, fid, recipientAddress]);
+  }, [isMiniApp, open, fid, recipientAddress]);
 
   // ── token price ───────────────────────────────────────────────────────────
 
@@ -153,7 +157,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
   const needsToBuy = senderAddress !== undefined && facesBalance !== null && facesBalance < rawFacesAmount;
 
   useEffect(() => {
-    if (!open || !needsToBuy || !recipientAddress) return;
+    if (isMiniApp || !open || !needsToBuy || !recipientAddress) return;
     swapAbort.current?.abort();
     const ctrl = new AbortController();
     swapAbort.current = ctrl;
@@ -168,7 +172,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
       .catch((e) => { if (e.name !== "AbortError") setSwapQuote(null); })
       .finally(() => setSwapLoading(false));
     return () => ctrl.abort();
-  }, [open, needsToBuy, amount, fid, recipientAddress, preferUsdc]);
+  }, [isMiniApp, open, needsToBuy, amount, fid, recipientAddress, preferUsdc]);
 
   // ── derived display ────────────────────────────────────────────────────────
 
@@ -213,6 +217,11 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
   async function handleSend() {
     if (!identity) { openConnect(); return; }
+
+    if (isMiniApp) {
+      await handleMiniAppTip();
+      return;
+    }
 
     const activeWallet = await resolveActiveWallet().catch((error) => {
       const msg = error instanceof Error ? error.message : String(error);
@@ -325,10 +334,6 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
         }),
       }).catch(() => {});
 
-      if (isMiniApp) {
-        const url = new URL(`/fid/${fid}`, window.location.origin).toString();
-        sdk.actions.composeCast({ text: tipMessage, embeds: [url] }).catch(() => {});
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
@@ -338,6 +343,91 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
         setStatus("error");
       } else {
         setErrorMsg(msg.length < 120 ? msg : "Transaction failed — check your wallet and try again.");
+        setStatus("error");
+      }
+    }
+  }
+
+  async function handleMiniAppTip() {
+    if (identity?.kind !== "farcaster") {
+      openConnect();
+      return;
+    }
+
+    setStatus("pending");
+    setErrorMsg(undefined);
+
+    try {
+      const senderWallet = senderAddress ?? await fetchPrimaryWallet(identity.fid).catch(() => undefined);
+      if (senderWallet) setSenderAddress(senderWallet);
+
+      let currentBalance = facesBalance;
+      if (senderWallet) {
+        currentBalance = await getFacesBalance(senderWallet);
+        setFacesBalance(currentBalance);
+      }
+
+      const txHashes: string[] = [];
+
+      if (currentBalance !== null && currentBalance < rawFacesAmount) {
+        const swapResult = await sdk.actions.swapToken({
+          sellToken: USDC_CAIP19,
+          buyToken: FACES_CAIP19,
+          sellAmount: estimateUsdcSellAmount(amount, tokenPrice),
+        });
+
+        if (!swapResult.success) {
+          throw new Error(swapResult.error?.message ?? "Swap was not completed.");
+        }
+
+        txHashes.push(...swapResult.swap.transactions);
+
+        if (senderWallet) {
+          const refreshed = await getFacesBalance(senderWallet).catch(() => null);
+          if (refreshed !== null) setFacesBalance(refreshed);
+        }
+      }
+
+      const sendResult = await sdk.actions.sendToken({
+        token: FACES_CAIP19,
+        amount: rawFacesAmount.toString(),
+        recipientFid: fid,
+        recipientAddress,
+      });
+
+      if (!sendResult.success) {
+        throw new Error(sendResult.error?.message ?? "Tip was not sent.");
+      }
+
+      txHashes.push(sendResult.send.transaction);
+
+      const tipMessage = buildTipMessage({
+        amount,
+        recipientName,
+        senderName: senderDisplayName(identity, senderWallet ?? ""),
+      });
+
+      setStatus("sent");
+      setOpen(false);
+      fetch("/api/activity", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          subjectFid: fid,
+          subjectDisplayName: recipientName,
+          amount,
+          actorAddress: senderWallet,
+          txHash: txHashes.at(-1),
+          message: tipMessage
+        }),
+      }).catch(() => {});
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
+        setStatus("idle");
+      } else {
+        setErrorMsg(msg.length < 120 ? msg : "Tip failed. Check your Farcaster wallet and try again.");
         setStatus("error");
       }
     }
@@ -359,7 +449,8 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
   const sendLabel = () => {
     if (status === "approving") return "Approving USDC…";
-    if (status === "pending")   return needsToBuy ? "Buying & sending…" : "Sending…";
+    if (status === "pending")   return needsToBuy ? "Swapping & tipping…" : "Sending tip…";
+    if (isMiniApp && needsToBuy) return `Swap & tip ${amount.toLocaleString()} FACES`;
     if (needsToBuy && swapLoading) return "Getting price…";
     if (needsToBuy && !swapQuote && !swapLoading) return "Need more FACES";
     return `Send ${amount.toLocaleString()} FACES`;
@@ -380,9 +471,9 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
         </p>
       )}
 
-      {recipientAddress && (
+      {(recipientAddress || isMiniApp) && (
         <>
-          {labeledAddresses.length > 1 ? (
+          {recipientAddress && labeledAddresses.length > 1 ? (
             <div className="tipAddressRow">
               <span className="tipAddressLabel">Send to:</span>
               <select
@@ -397,12 +488,14 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
                 ))}
               </select>
             </div>
-          ) : (
+          ) : recipientAddress ? (
             <p className="tipHint">
               {labeledAddresses[0]?.label ?? "Sending to"}{" "}
               <strong>{recipientAddress.slice(0, 6)}…{recipientAddress.slice(-4)}</strong>
               {labeledAddresses[0]?.isVerified && <span className="tipVerifiedBadge"> ✓</span>}
             </p>
+          ) : (
+            <p className="tipHint">Farcaster will route this tip to the profile wallet.</p>
           )}
 
           <div className="tipBalances">
@@ -446,10 +539,10 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
       {!loading && (
         <>
-          {needsToBuy && costHint && (
+          {!isMiniApp && needsToBuy && costHint && (
             <p className="tipCostHint">Estimated purchase: {costHint}</p>
           )}
-          {needsToBuy && !costHint && !swapLoading && (
+          {!isMiniApp && needsToBuy && !costHint && !swapLoading && (
             <p className="tipCostHint warning">
               You need {missingFaces.toLocaleString(undefined, { maximumFractionDigits: 2 })} more FACES. Buying is not available yet, so add FACES to your wallet and send again.
             </p>
@@ -459,7 +552,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
               type="button"
               className="primaryButton"
               onClick={handleSend}
-              disabled={status === "pending" || status === "approving" || swapLoading || (needsToBuy && !swapQuote && !swapLoading)}
+              disabled={status === "pending" || status === "approving" || (!isMiniApp && (swapLoading || (needsToBuy && !swapQuote && !swapLoading)))}
             >
               {sendLabel()}
             </button>
@@ -555,6 +648,18 @@ async function waitForRecipientBalanceIncrease(recipientAddress: string, before:
 async function getFacesBalance(address: string) {
   const data = "0x70a08231" + address.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
   return BigInt(await rpcCall(FACES_TOKEN, data) || "0x0");
+}
+
+async function fetchPrimaryWallet(fid: number) {
+  const res = await fetch(`/api/faces/${fid}/wallet`);
+  const data = await res.json() as { ok: boolean; addresses?: string[] };
+  return data.ok ? data.addresses?.[0]?.toLowerCase() : undefined;
+}
+
+function estimateUsdcSellAmount(facesAmount: number, tokenPrice?: number) {
+  if (!tokenPrice || tokenPrice <= 0) return undefined;
+  const dollars = Math.max(0.01, facesAmount * tokenPrice * 1.2);
+  return BigInt(Math.ceil(dollars * Number(10n ** USDC_DECIMALS))).toString();
 }
 
 function delay(ms: number) {

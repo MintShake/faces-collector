@@ -27,7 +27,7 @@ export function GET() {
       ogDescription: "Profile picture history across the social web.",
       ogImageUrl: `${appUrl}/miniapp/embed.png`,
       webhookUrl: `${appUrl}/api/miniapp/events`,
-      requiredCapabilities: ["actions.ready", "actions.addMiniApp"]
+      requiredCapabilities: ["actions.ready", "actions.addMiniApp", "actions.sendToken", "actions.swapToken"]
     }
   });
 }
