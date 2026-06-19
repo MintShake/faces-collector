@@ -55,6 +55,7 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
   const [amount, setAmount]     = useState(100);
   const [status, setStatus]     = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState<string>();
+  const [successMsg, setSuccessMsg] = useState<string>();
 
   // Resolved sender — may come from miniapp provider or Web3Modal.
   const [senderAddress, setSenderAddress]   = useState<string | undefined>();
@@ -218,6 +219,8 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
   async function handleSend() {
     if (!identity) { openConnect(); return; }
 
+    setSuccessMsg(undefined);
+
     if (isMiniApp) {
       await handleMiniAppTip();
       return;
@@ -320,20 +323,15 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
       setStatus("sent");
       setOpen(false);
-      fetch("/api/activity", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        keepalive: true,
-        body: JSON.stringify({
-          subjectFid: fid,
-          subjectDisplayName: recipientName,
-          amount,
-          actorAddress: activeWallet.senderAddress,
-          txHash,
-          message: tipMessage
-        }),
-      }).catch(() => {});
-
+      setSuccessMsg(`Tip sent to ${recipientName}.`);
+      void recordTipActivity({
+        fid,
+        recipientName,
+        amount,
+        actorAddress: activeWallet.senderAddress,
+        txHash,
+        message: tipMessage
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
@@ -345,6 +343,33 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
         setErrorMsg(msg.length < 120 ? msg : "Transaction failed — check your wallet and try again.");
         setStatus("error");
       }
+    }
+  }
+
+  async function recordTipActivity(input: {
+    fid: number;
+    recipientName: string;
+    amount: number;
+    actorAddress?: string;
+    txHash?: string;
+    message: string;
+  }) {
+    try {
+      const response = await fetch("/api/activity", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          subjectFid: input.fid,
+          subjectDisplayName: input.recipientName,
+          amount: input.amount,
+          actorAddress: input.actorAddress,
+          txHash: input.txHash,
+          message: input.message
+        }),
+      });
+      if (!response.ok) throw new Error(await response.text());
+    } catch {
+      setErrorMsg("Tip sent, but Faces could not update activity yet.");
     }
   }
 
@@ -394,19 +419,15 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
       setStatus("sent");
       setOpen(false);
-      fetch("/api/activity", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        keepalive: true,
-        body: JSON.stringify({
-          subjectFid: fid,
-          subjectDisplayName: recipientName,
-          amount,
-          actorAddress: activeWallet.senderAddress,
-          txHash: result.txHash,
-          message: tipMessage
-        }),
-      }).catch(() => {});
+      setSuccessMsg(`Tip sent to ${recipientName}.`);
+      void recordTipActivity({
+        fid,
+        recipientName,
+        amount,
+        actorAddress: activeWallet.senderAddress,
+        txHash: result.txHash,
+        message: tipMessage
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("denied")) {
@@ -459,7 +480,14 @@ export function TipButton({ fid, recipientName }: { fid: number; recipientName: 
 
   // ── render ────────────────────────────────────────────────────────────────
 
-  if (status === "sent") return <span className="tipSent">Tip sent to {recipientName}!</span>;
+  if (status === "sent") {
+    return (
+      <span className="tipSent">
+        {successMsg ?? `Tip sent to ${recipientName}.`}
+        {errorMsg && <small>{errorMsg}</small>}
+      </span>
+    );
+  }
 
   if (!open) {
     return (
@@ -650,16 +678,20 @@ async function sendTransactionWithBalanceFallback({
   expectedDelta: bigint;
 }) {
   const before = await getFacesBalance(recipientAddress);
-  const txPromise = ethProvider.request({
+  const result = await ethProvider.request({
     method: "eth_sendTransaction",
     params: [transaction],
-  }).then((result) => ({
-    txHash: typeof result === "string" && /^0x[a-fA-F0-9]{64}$/.test(result) ? result : undefined
-  }));
-  const balancePromise = waitForRecipientBalanceIncrease(recipientAddress, before, expectedDelta)
-    .then(() => ({ txHash: undefined }));
+  });
+  const txHash = typeof result === "string" && /^0x[a-fA-F0-9]{64}$/.test(result) ? result : undefined;
 
-  return Promise.race([txPromise, balancePromise]);
+  try {
+    await waitForRecipientBalanceIncrease(recipientAddress, before, expectedDelta);
+  } catch {
+    // Some hosts return before indexers/RPC catch up. Keep the tx hash and let
+    // the activity log show the tip instead of trapping the user in pending.
+  }
+
+  return { txHash };
 }
 
 async function waitForRecipientBalanceIncrease(recipientAddress: string, before: bigint, expectedDelta: bigint) {

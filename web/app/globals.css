@@ -1206,11 +1206,18 @@ h1 {
 }
 .tipButton:hover { background: rgba(24,200,210,0.18); }
 .tipSent {
-  display: inline-block;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
   margin-top: 12px;
   font-size: 13px;
   font-weight: 700;
   color: var(--leaf);
+}
+.tipSent small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
 }
 .tipPanel {
   display: flex;
