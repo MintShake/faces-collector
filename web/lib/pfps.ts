@@ -9,6 +9,7 @@ import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { get, list } from "@vercel/blob";
 import { getLikeSummaryMap, getPendingReportedImageIds } from "./social";
 import { BADGE_DEFS, getBadgeSummary, awardFidBadges } from "./badges";
+import { APP_URL } from "./app-url";
 
 export type PfpImage = {
   id: string;
@@ -1002,8 +1003,7 @@ function imageProxyBaseUrl() {
     return undefined;
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
-  return `${appUrl.replace(/\/$/, "")}/api/image`;
+  return `${APP_URL}/api/image`;
 }
 
 function newestTime(tile: FidTile) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { APP_HOST, APP_URL } from "@/lib/app-url";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
 const splashBackgroundColor = "#07121f";
 
 export const dynamic = "force-dynamic";
@@ -13,21 +13,25 @@ export function GET() {
     miniapp: {
       version: "1",
       name: "Faces",
-      iconUrl: `${appUrl}/miniapp/icon.png`,
-      homeUrl: appUrl,
-      imageUrl: `${appUrl}/miniapp/embed.png`,
+      iconUrl: `${APP_URL}/miniapp/icon.png`,
+      homeUrl: APP_URL,
+      imageUrl: `${APP_URL}/miniapp/embed.png`,
       buttonTitle: "Browse faces",
-      splashImageUrl: `${appUrl}/miniapp/splash.png`,
+      splashImageUrl: `${APP_URL}/miniapp/splash.png`,
       splashBackgroundColor,
       subtitle: "Profile images saved",
       description: "Browse public profile picture history across the social web.",
       primaryCategory: "social",
       tags: ["farcaster", "pfp", "profiles", "history"],
+      heroImageUrl: `${APP_URL}/miniapp/og.png`,
+      tagline: "Profile images saved",
       ogTitle: "Faces",
       ogDescription: "Profile picture history across the social web.",
-      ogImageUrl: `${appUrl}/miniapp/embed.png`,
-      webhookUrl: `${appUrl}/api/miniapp/events`,
-      requiredCapabilities: ["actions.ready", "actions.addMiniApp", "actions.sendToken", "actions.swapToken", "wallet.getEthereumProvider"]
+      ogImageUrl: `${APP_URL}/miniapp/og.png`,
+      webhookUrl: `${APP_URL}/api/miniapp/events`,
+      requiredChains: ["eip155:8453"],
+      requiredCapabilities: ["actions.ready", "actions.addMiniApp", "actions.composeCast", "actions.swapToken", "wallet.getEthereumProvider"],
+      canonicalDomain: APP_HOST
     }
   });
 }

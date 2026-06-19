@@ -423,6 +423,7 @@ async function readPendingReportMap() {
 export async function notifyPfpOwner(input: {
   ownerFid: number;
   liker: Pick<LikeUser, "id" | "fid" | "address" | "username" | "displayName">;
+  imageId?: string;
   targetUrl: string;
 }) {
   const owner = await getRegisteredUser(input.ownerFid);
@@ -441,7 +442,7 @@ export async function notifyPfpOwner(input: {
       "content-type": "application/json"
     },
     body: JSON.stringify({
-      notificationId: `like-${input.ownerFid}-${input.liker.id}-${Date.now()}`.slice(0, 128),
+      notificationId: `like-${input.ownerFid}-${input.imageId ?? "image"}-${input.liker.id}`.slice(0, 128),
       title: "New Faces like",
       body: `${likerName} liked one of your PFPs.`,
       targetUrl: input.targetUrl,
@@ -496,6 +497,7 @@ export async function notifyProfileImageChange(input: {
   recipient: RegisteredUser;
   changedFid: number;
   changedName?: string;
+  changeId: string;
   targetUrl: string;
 }) {
   const details = input.recipient.notificationDetails;
@@ -511,7 +513,7 @@ export async function notifyProfileImageChange(input: {
       "content-type": "application/json"
     },
     body: JSON.stringify({
-      notificationId: `pfp-${input.changedFid}-${Date.now()}`.slice(0, 128),
+      notificationId: `pfp-${input.changeId}`.slice(0, 128),
       title: "New profile image",
       body: `${name} changed their profile image.`,
       targetUrl: input.targetUrl,

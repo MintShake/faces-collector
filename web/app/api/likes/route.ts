@@ -185,6 +185,7 @@ export async function POST(request: Request) {
     notification = await notifyPfpOwner({
       ownerFid,
       liker: user,
+      imageId,
       targetUrl: new URL(`/fid/${ownerFid}`, request.url).toString()
     });
   }

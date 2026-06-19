@@ -1,4 +1,5 @@
 import { createWeb3Modal, defaultConfig } from "@web3modal/ethers/react";
+import { APP_URL } from "@/lib/app-url";
 
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? "faces-walletconnect-disabled";
 
@@ -15,7 +16,7 @@ createWeb3Modal({
     metadata: {
       name: "Faces",
       description: "Profile pic history for the social web",
-      url: typeof window !== "undefined" ? window.location.origin : "https://web-legoblocksapps.vercel.app",
+      url: typeof window !== "undefined" ? window.location.origin : APP_URL,
       icons: []
     },
     enableEIP6963: true,

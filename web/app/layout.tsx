@@ -3,32 +3,32 @@ import "./globals.css";
 import { AuthProvider } from "./auth-context";
 import { ConnectModal } from "./connect-modal";
 import { Nav } from "./nav";
+import { APP_URL } from "@/lib/app-url";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://web-legoblocksapps.vercel.app";
 const splashBackgroundColor = "#07121f";
 const miniAppEmbed = {
   version: "1",
-  imageUrl: `${appUrl}/miniapp/embed.png`,
+  imageUrl: `${APP_URL}/miniapp/embed.png`,
   button: {
     title: "Browse faces",
     action: {
       type: "launch_miniapp",
       name: "Faces",
-      url: appUrl,
-      splashImageUrl: `${appUrl}/miniapp/splash.png`,
+      url: APP_URL,
+      splashImageUrl: `${APP_URL}/miniapp/splash.png`,
       splashBackgroundColor
     }
   }
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(appUrl),
+  metadataBase: new URL(APP_URL),
   title: "Faces",
   description: "Profile picture history across the social web.",
   openGraph: {
     title: "Faces",
     description: "Profile picture history across the social web.",
-    images: ["/miniapp/embed.png"]
+    images: ["/miniapp/og.png"]
   },
   icons: {
     icon: "/miniapp/icon.png",

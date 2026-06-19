@@ -11,6 +11,7 @@ type PfpChangeBody = {
   fid?: number;
   username?: string;
   displayName?: string;
+  changeId?: string;
 };
 
 export async function POST(request: Request) {
@@ -61,12 +62,14 @@ export async function POST(request: Request) {
   const changedName = body?.username
     ? `@${body.username}`
     : body?.displayName;
+  const changeId = sanitizeChangeId(body?.changeId) ?? `fid-${changedFid}`;
   const targetUrl = new URL(`/fid/${changedFid}`, request.url).toString();
   const results = await Promise.allSettled(
     recipients.map((recipient) => notifyProfileImageChange({
       recipient,
       changedFid,
       changedName,
+      changeId,
       targetUrl
     }))
   );
@@ -78,6 +81,12 @@ export async function POST(request: Request) {
     matched: recipients.length,
     sent
   });
+}
+
+function sanitizeChangeId(value: unknown) {
+  return typeof value === "string" && /^[A-Za-z0-9._-]{3,80}$/.test(value)
+    ? value
+    : undefined;
 }
 
 async function fetchFollowerFids(fid: number, apiKey: string) {

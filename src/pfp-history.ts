@@ -452,7 +452,8 @@ function fireProfileImageNotification(change: PfpChange, interaction: FarcasterI
     body: JSON.stringify({
       fid: change.fid,
       username: interaction.username,
-      displayName: interaction.displayName
+      displayName: interaction.displayName,
+      changeId: `${change.fid}-${change.sha256.slice(0, 24)}`
     }),
     signal: AbortSignal.timeout(8_000)
   }).catch((err) => {
