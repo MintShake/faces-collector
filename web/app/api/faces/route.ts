@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
-import { getPfpGallery } from "@/lib/pfps";
+import { getPfpGalleryPage } from "@/lib/pfps";
 import { clampNumber, corsHeaders, logApiRequest, publicApiHeaders } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const startedAt = Date.now();
+  const limited = await rateLimit(request, {
+    namespace: "faces:list",
+    limit: 90,
+    windowSeconds: 60
+  });
+
+  if (limited) {
+    logApiRequest({ route: "faces.list", request, startedAt, status: 429, error: "rate_limited" });
+    return limited;
+  }
+
   const url = new URL(request.url);
   const limit = clampNumber(url.searchParams.get("limit"), 1, 500, 100);
   const offset = clampNumber(url.searchParams.get("offset"), 0, 100_000, 0);
@@ -14,22 +26,22 @@ export async function GET(request: Request) {
   const order = parseOrder(url.searchParams.get("order"));
   const query = url.searchParams.get("q")?.trim();
   const minImages = clampNumber(url.searchParams.get("minImages"), 1, 1000, 1);
-  const allTiles = await getPfpGallery({
+  const page = await getPfpGalleryPage({
+    limit,
+    offset,
     imagesPerFid,
     sort,
     order,
     query,
     minImages
   });
-  const tiles = allTiles.slice(offset, offset + limit);
-  const totalImages = allTiles.reduce((sum, tile) => sum + tile.imageCount, 0);
   logApiRequest({
     route: "faces.list",
     request,
     startedAt,
-    count: tiles.length,
-    totalFids: allTiles.length,
-    totalImages
+    count: page.tiles.length,
+    totalFids: page.totalFids,
+    totalImages: page.totalImages
   });
 
   return json({
@@ -43,10 +55,10 @@ export async function GET(request: Request) {
       q: query ?? null,
       minImages
     },
-    count: tiles.length,
-    totalFids: allTiles.length,
-    totalImages,
-    data: tiles
+    count: page.tiles.length,
+    totalFids: page.totalFids,
+    totalImages: page.totalImages,
+    data: page.tiles
   });
 }
 

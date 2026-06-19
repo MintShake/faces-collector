@@ -19,3 +19,5 @@ services:
         sync: false
       - key: BLOB_READ_WRITE_TOKEN
         sync: false
+      - key: COLLECTOR_SHARED_SECRET
+        sync: false

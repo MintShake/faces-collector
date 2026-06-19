@@ -4,6 +4,7 @@ import {
   type S3ClientConfig
 } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 type ReportBody = {
   fid?: number;
@@ -13,6 +14,16 @@ type ReportBody = {
 };
 
 export async function POST(request: Request) {
+  const limited = await rateLimit(request, {
+    namespace: "reports:post",
+    limit: 10,
+    windowSeconds: 60
+  });
+
+  if (limited) {
+    return limited;
+  }
+
   const body = await request.json().catch(() => undefined) as ReportBody | undefined;
   const fid = body?.fid;
 

@@ -63,7 +63,7 @@ export function ShareButton({
   function shareToFarcaster() {
     const { url, shareText } = buildShare();
     window.open(
-      `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(url)}`,
+      `https://farcaster.xyz/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(url)}`,
       "_blank",
       "noreferrer"
     );

@@ -270,9 +270,7 @@ async function shouldRefreshProfile(fid: number) {
 async function postProfile(profile: ProfileSnapshot) {
   const response = await fetch(new URL("/farcaster/profiles", config.collectorUrl), {
     method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
+    headers: collectorHeaders(),
     body: JSON.stringify(profile),
     signal: AbortSignal.timeout(20_000)
   });
@@ -297,9 +295,7 @@ async function postHeartbeat(status = "running") {
   try {
     await fetch(new URL("/internal/monitor-status", config.collectorUrl), {
       method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
+      headers: collectorHeaders(),
       body: JSON.stringify({
         status,
         startedAt,
@@ -340,6 +336,13 @@ async function restartStaleStream() {
   console.warn(lastError);
   await postHeartbeat("stale_stream_restart");
   client.close();
+}
+
+function collectorHeaders() {
+  return {
+    "content-type": "application/json",
+    ...(config.collectorSharedSecret ? { "x-collector-secret": config.collectorSharedSecret } : {})
+  };
 }
 
 function waitForReady(hubClient: HubRpcClient) {

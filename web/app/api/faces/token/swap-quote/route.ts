@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
+import { rateLimit } from "@/lib/rate-limit";
 
 const WETH   = "0x4200000000000000000000000000000000000006";
 const USDC   = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // native USDC on Base
@@ -16,6 +17,16 @@ const routerInterface = new ethers.Interface([
 ]);
 
 export async function GET(req: NextRequest) {
+  const limited = await rateLimit(req, {
+    namespace: "token:swap-quote",
+    limit: 60,
+    windowSeconds: 60
+  });
+
+  if (limited) {
+    return limited;
+  }
+
   const { searchParams } = new URL(req.url);
   const fid    = Number(searchParams.get("fid"));
   const amount = Number(searchParams.get("amount")); // desired FACES tokens

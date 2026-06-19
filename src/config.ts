@@ -16,6 +16,10 @@ export const config = {
   pfpStorageDir: process.env.PFP_STORAGE_DIR ?? "data/pfps",
   sqliteDbPath: process.env.SQLITE_DB_PATH ?? "data/faces.sqlite",
   blobUploadOriginals: process.env.BLOB_UPLOAD_ORIGINALS === "true",
+  collectorSharedSecret: process.env.COLLECTOR_SHARED_SECRET,
+  collectorRateLimitWindowMs: Number(process.env.COLLECTOR_RATE_LIMIT_WINDOW_MS ?? 60_000),
+  collectorRateLimitMax: Number(process.env.COLLECTOR_RATE_LIMIT_MAX ?? 120),
+  maxPfpDownloadBytes: Number(process.env.MAX_PFP_DOWNLOAD_BYTES ?? 5_000_000),
   collectorUrl: process.env.COLLECTOR_URL ?? "http://localhost:3000",
   neynarApiKey: process.env.NEYNAR_API_KEY,
   neynarFeedUrl:

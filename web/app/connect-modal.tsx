@@ -29,7 +29,7 @@ export function ConnectModal() {
         <div className="connectFarcaster">
           <div className="connectFarcasterLabel">
             <span>Sign in with Farcaster</span>
-            <small>Scan with Warpcast</small>
+            <small>Scan with Farcaster</small>
           </div>
           <SignInButton
             onSuccess={({ fid, username, displayName, pfpUrl }) => {

@@ -62,6 +62,12 @@ type GalleryOptions = {
   minImages?: number;
 };
 
+export type PfpGalleryPage = {
+  tiles: FidTile[];
+  totalFids: number;
+  totalImages: number;
+};
+
 type ListedBlob = {
   pathname: string;
   url: string;
@@ -86,12 +92,17 @@ const SCORE_INDEX_CACHE_TTL_MS = 5 * 60_000;
 let scoreIndexCache: ScoreIndexCacheEntry | undefined;
 
 export async function getPfpGallery(options: GalleryOptions = {}) {
+  const page = await getBlobPfpGallery(options);
+  return page.tiles;
+}
+
+export async function getPfpGalleryPage(options: GalleryOptions = {}) {
   return getBlobPfpGallery(options);
 }
 
 export async function getFidTile(fid: number): Promise<FidTile | undefined> {
   const gallery = await getBlobPfpGallery({ fid });
-  const tile = gallery.find((item) => item.fid === fid);
+  const tile = gallery.tiles.find((item) => item.fid === fid);
 
   if (!tile) {
     return undefined;
@@ -215,21 +226,6 @@ async function bulkEnrichProfiles(fids: number[]) {
     }
   }
 
-  // For any FIDs Neynar didn't return, fall back to Warpcast sequentially.
-  const missing = fids.filter((f) => !enriched.has(f));
-  for (const fid of missing) {
-    try {
-      const res = await fetch(`https://api.warpcast.com/v2/user?fid=${fid}`);
-      if (res.ok) {
-        const data = await res.json() as { result?: { user?: { username?: string; displayName?: string; pfp?: { url?: string } } } };
-        const u = data.result?.user;
-        if (u?.username || u?.displayName) {
-          enriched.set(fid, { username: u.username, displayName: u.displayName, pfpUrl: u.pfp?.url });
-        }
-      }
-    } catch { /* ignore */ }
-  }
-
   // Write enriched profiles back to storage and update cache.
   await Promise.all([...enriched.entries()].map(async ([fid, names]) => {
     try {
@@ -253,7 +249,7 @@ async function bulkEnrichProfiles(fids: number[]) {
 }
 
 export async function getRecentPfpImages(limit = 50) {
-  const gallery = await getBlobPfpGallery();
+  const { tiles: gallery } = await getBlobPfpGallery();
 
   return gallery
     .flatMap((tile) => tile.images.map((image) => ({ fid: tile.fid, image })))
@@ -262,7 +258,7 @@ export async function getRecentPfpImages(limit = 50) {
 }
 
 export async function getPfpStats() {
-  const gallery = await getBlobPfpGallery();
+  const { tiles: gallery } = await getBlobPfpGallery();
   const images = gallery.flatMap((tile) => tile.images.map((image) => ({ fid: tile.fid, image })));
   const newest = [...images].sort((a, b) => Date.parse(b.image.storedAt) - Date.parse(a.image.storedAt))[0];
   const topTimeline = [...gallery].sort((a, b) => b.imageCount - a.imageCount)[0];
@@ -334,7 +330,7 @@ export async function getObjectStorageStats() {
   };
 }
 
-async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}) {
+async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}): Promise<PfpGalleryPage> {
   // Use fid-specific prefix when fetching a single profile — avoids scanning all blobs.
   const blobPrefix = options.fid ? `pfps/${options.fid}/` : "pfps/";
   const [blobs, likeSummary, badgeSummary, scoreIndex] = await Promise.all([
@@ -431,6 +427,8 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
 
   const offset = options.offset ?? 0;
   const limited = options.limit ? filtered.slice(offset, offset + options.limit) : filtered.slice(offset);
+  const totalFids = filtered.length;
+  const totalImages = filtered.reduce((sum, tile) => sum + tile.imageCount, 0);
 
   // Attach profiles for tiles that don't already have one (search path already fetches them).
   const withProfiles = await Promise.all(
@@ -457,7 +455,11 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
     }
   }
 
-  return withProfiles;
+  return {
+    tiles: withProfiles,
+    totalFids,
+    totalImages
+  };
 }
 
 async function getScoreIndex(): Promise<Record<string, number>> {

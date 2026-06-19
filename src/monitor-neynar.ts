@@ -132,9 +132,7 @@ function uniqueAuthors(casts: NeynarCast[]) {
 async function postProfile(profile: Record<string, unknown>) {
   const response = await fetch(new URL("/farcaster/profiles", config.collectorUrl), {
     method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
+    headers: collectorHeaders(),
     body: JSON.stringify(profile),
     signal: AbortSignal.timeout(20_000)
   });
@@ -143,6 +141,13 @@ async function postProfile(profile: Record<string, unknown>) {
     ok: response.ok,
     status: response.status,
     body: await response.text()
+  };
+}
+
+function collectorHeaders() {
+  return {
+    "content-type": "application/json",
+    ...(config.collectorSharedSecret ? { "x-collector-secret": config.collectorSharedSecret } : {})
   };
 }
 

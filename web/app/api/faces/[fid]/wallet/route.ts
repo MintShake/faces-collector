@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 const ID_REGISTRY = "0x00000000Fc6c5F01Fc30151999387Bb99A9f489b";
 const OP_RPC = "https://mainnet.optimism.io";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ fid: string }> }
 ) {
+  const limited = await rateLimit(req, {
+    namespace: "faces:wallet",
+    limit: 90,
+    windowSeconds: 60
+  });
+
+  if (limited) {
+    return limited;
+  }
+
   const { fid } = await params;
   const numericFid = Number(fid);
 
@@ -38,25 +49,7 @@ export async function GET(
     } catch { /* fall through */ }
   }
 
-  // 2. Warpcast public API — no key required.
-  try {
-    const res = await fetch(
-      `https://api.warpcast.com/v2/user?fid=${numericFid}`,
-      { next: { revalidate: 300 } }
-    );
-    if (res.ok) {
-      const data = await res.json() as { result?: { user?: WarpcastUser } };
-      const user = data.result?.user;
-      if (user) {
-        return buildResponse(
-          user.custodyAddress,
-          user.verifications ?? []
-        );
-      }
-    }
-  } catch { /* fall through */ }
-
-  // 3. On-chain IdRegistry — custody address only.
+  // 2. On-chain IdRegistry — custody address only.
   try {
     const custody = await getCustodyAddress(numericFid);
     if (custody && custody !== "0x0000000000000000000000000000000000000000") {
@@ -121,11 +114,6 @@ type NeynarUser = {
   custody_address: string;
   verifications?: string[];
   verified_addresses?: { eth_addresses?: string[] };
-};
-
-type WarpcastUser = {
-  custodyAddress: string;
-  verifications?: string[];
 };
 
 type LabeledAddress = {

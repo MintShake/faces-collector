@@ -57,6 +57,16 @@ The same values need to exist in both Render for the collector and Vercel for th
 
 Kafka is optional. Set `KAFKA_ENABLED=true` to emit Kafka events; leave it false for the lightweight hosted collector path that only uses SQLite and Vercel Blob.
 
+For hosted collectors, set a shared secret so only your monitor can write profile snapshots:
+
+```bash
+COLLECTOR_SHARED_SECRET=generate-a-long-random-value
+```
+
+When this is set, `/farcaster/interactions`, `/farcaster/profiles`, and `/internal/monitor-status` require `x-collector-secret` or `Authorization: Bearer ...`. The bundled monitors send the header automatically. The collector also rate-limits write endpoints and rejects PFP downloads that resolve to private network addresses or exceed `MAX_PFP_DOWNLOAD_BYTES`.
+
+The web API has per-IP rate limiting. If `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured, limits are shared across serverless instances; otherwise local in-memory limits are used.
+
 ## Monitor Active Farcaster Users
 
 Add a Neynar API key to `.env`:

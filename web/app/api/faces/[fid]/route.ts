@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { corsHeaders, logApiRequest, publicApiHeaders } from "@/lib/api";
 import { getFidTile } from "@/lib/pfps";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,17 @@ export async function GET(
   { params }: { params: Promise<{ fid: string }> }
 ) {
   const startedAt = Date.now();
+  const limited = await rateLimit(request, {
+    namespace: "faces:detail",
+    limit: 120,
+    windowSeconds: 60
+  });
+
+  if (limited) {
+    logApiRequest({ route: "faces.detail", request, startedAt, status: 429, error: "rate_limited" });
+    return limited;
+  }
+
   const { fid } = await params;
   const numericFid = Number(fid);
 

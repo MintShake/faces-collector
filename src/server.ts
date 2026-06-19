@@ -9,6 +9,11 @@ import { storePfpIfChanged, type PfpChange } from "./pfp-history.js";
 const app = express();
 const publicDir = path.join(process.cwd(), "public");
 let monitorStatus: Record<string, unknown> | undefined;
+const requestCounts = new Map<string, { count: number; resetAt: number }>();
+
+if (!config.collectorSharedSecret) {
+  console.warn("COLLECTOR_SHARED_SECRET is not set; collector write endpoints are unauthenticated.");
+}
 
 app.use(express.json({ limit: "1mb" }));
 app.use("/pfps", express.static(config.pfpStorageDir));
@@ -21,7 +26,7 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.post("/internal/monitor-status", (req, res) => {
+app.post("/internal/monitor-status", requireCollectorSecret, collectorRateLimit, (req, res) => {
   monitorStatus = {
     ...req.body,
     lastHeartbeatAt: new Date().toISOString()
@@ -41,7 +46,7 @@ app.get("/api/pfps", async (_req, res, next) => {
   }
 });
 
-app.post("/farcaster/interactions", async (req, res, next) => {
+app.post("/farcaster/interactions", requireCollectorSecret, collectorRateLimit, async (req, res, next) => {
   try {
     const interaction = normalizeInteraction(req.body);
     const key = String(interaction.fid);
@@ -69,7 +74,7 @@ app.post("/farcaster/interactions", async (req, res, next) => {
   }
 });
 
-app.post("/farcaster/profiles", async (req, res, next) => {
+app.post("/farcaster/profiles", requireCollectorSecret, collectorRateLimit, async (req, res, next) => {
   try {
     const interaction = normalizeInteraction({
       type: "profile.seen",
@@ -100,6 +105,61 @@ app.post("/farcaster/profiles", async (req, res, next) => {
     next(error);
   }
 });
+
+function requireCollectorSecret(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  if (!config.collectorSharedSecret) {
+    next();
+    return;
+  }
+
+  const auth = req.get("authorization");
+  const token = req.get("x-collector-secret") ?? auth?.replace(/^Bearer\s+/i, "");
+
+  if (token !== config.collectorSharedSecret) {
+    res.status(401).json({ ok: false, error: "unauthorized" });
+    return;
+  }
+
+  next();
+}
+
+function collectorRateLimit(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  const now = Date.now();
+  const windowMs = Math.max(1_000, config.collectorRateLimitWindowMs);
+  const max = Math.max(1, config.collectorRateLimitMax);
+  const key = `${req.ip}:${req.path}`;
+  const current = requestCounts.get(key);
+  const bucket = current && current.resetAt > now
+    ? current
+    : { count: 0, resetAt: now + windowMs };
+
+  bucket.count += 1;
+  requestCounts.set(key, bucket);
+
+  if (bucket.count > max) {
+    res.setHeader("Retry-After", Math.ceil((bucket.resetAt - now) / 1000));
+    res.status(429).json({ ok: false, error: "rate_limited" });
+    return;
+  }
+
+  if (requestCounts.size > 10_000) {
+    for (const [entryKey, entry] of requestCounts) {
+      if (entry.resetAt <= now) {
+        requestCounts.delete(entryKey);
+      }
+    }
+  }
+
+  next();
+}
 
 async function collectPfpChange(interaction: ReturnType<typeof normalizeInteraction>) {
   try {

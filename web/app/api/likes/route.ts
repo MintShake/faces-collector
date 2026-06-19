@@ -7,6 +7,7 @@ import {
   updateImageLike,
   type NotificationDetails
 } from "@/lib/social";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,17 @@ type LikeBody = {
 
 export async function GET(request: Request) {
   const startedAt = Date.now();
+  const limited = await rateLimit(request, {
+    namespace: "likes:get",
+    limit: 180,
+    windowSeconds: 60
+  });
+
+  if (limited) {
+    logApiRequest({ route: "likes.get", request, startedAt, status: 429, error: "rate_limited" });
+    return limited;
+  }
+
   const { searchParams } = new URL(request.url);
   const imageId = searchParams.get("imageId");
   const viewerId = searchParams.get("viewerId");
@@ -70,14 +82,25 @@ export function OPTIONS() {
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
-  const body = await request.json() as LikeBody;
+  const limited = await rateLimit(request, {
+    namespace: "likes:post",
+    limit: 30,
+    windowSeconds: 60
+  });
 
-  const imageId = body.imageId;
-  const ownerFid = typeof body.ownerFid === "number" && Number.isInteger(body.ownerFid)
+  if (limited) {
+    logApiRequest({ route: "likes.post", request, startedAt, status: 429, error: "rate_limited" });
+    return limited;
+  }
+
+  const body = await request.json().catch(() => undefined) as LikeBody | undefined;
+
+  const imageId = validImageId(body?.imageId) ? body.imageId : undefined;
+  const ownerFid = typeof body?.ownerFid === "number" && Number.isInteger(body.ownerFid)
     ? body.ownerFid
     : undefined;
-  const imageUrl = body.imageUrl;
-  const action = body.action;
+  const imageUrl = validImageUrl(body?.imageUrl) ? body.imageUrl : undefined;
+  const action = body?.action;
 
   if (!imageId || !ownerFid || !imageUrl) {
     logApiRequest({ route: "likes.post", request, startedAt, status: 400, imageId, error: "missing_fields" });
@@ -89,7 +112,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "action must be like or unlike" }, { status: 400 });
   }
 
-  const bodyUser = body.user;
+  const bodyUser = body?.user;
   const userFid = typeof bodyUser?.fid === "number" && Number.isInteger(bodyUser.fid)
     ? bodyUser.fid
     : undefined;
@@ -121,7 +144,9 @@ export async function POST(request: Request) {
         username: user.username,
         displayName: user.displayName,
         pfpUrl: user.pfpUrl,
-        notificationDetails: body.notificationDetails
+        notificationDetails: validNotificationDetails(body?.notificationDetails)
+          ? body.notificationDetails
+          : undefined
       });
     }
 
@@ -180,4 +205,36 @@ export async function POST(request: Request) {
     likes: Object.values(record.likes).sort((a, b) => Date.parse(b.likedAt) - Date.parse(a.likedAt)),
     notification
   });
+}
+
+function validImageId(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9]+\/[A-Za-z0-9T._-]{10,120}$/.test(value);
+}
+
+function validImageUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 500) {
+    return false;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function validNotificationDetails(value: unknown): value is NotificationDetails {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const details = value as NotificationDetails;
+  return (
+    typeof details.url === "string" &&
+    details.url.startsWith("https://") &&
+    details.url.length <= 500 &&
+    typeof details.token === "string" &&
+    details.token.length <= 500
+  );
 }

@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
+import { lookup } from "node:dns/promises";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import { config } from "./config.js";
 import { uploadPfpToBlob, type BlobPfpUploadSet } from "./blob-storage.js";
@@ -255,13 +257,33 @@ async function uploadVariantsToBlob(input: {
 }
 
 async function downloadImage(url: string) {
-  const response = await fetch(url, {
-    redirect: "follow",
-    signal: AbortSignal.timeout(15_000)
-  });
+  let currentUrl = await validateFetchableUrl(url);
+  let response: Response | undefined;
+
+  for (let redirects = 0; redirects <= 5; redirects += 1) {
+    response = await fetch(currentUrl.toString(), {
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000)
+    });
+
+    if (!isRedirect(response.status)) {
+      break;
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      throw new Error("PFP redirect did not include a location");
+    }
+
+    currentUrl = await validateFetchableUrl(new URL(location, currentUrl).toString());
+  }
+
+  if (!response || isRedirect(response.status)) {
+    throw new Error("PFP URL redirected too many times");
+  }
 
   if (!response.ok) {
-    throw new Error(`Failed to download PFP ${url}: ${response.status} ${response.statusText}`);
+    throw new Error(`Failed to download PFP ${currentUrl}: ${response.status} ${response.statusText}`);
   }
 
   const contentType =
@@ -271,10 +293,87 @@ async function downloadImage(url: string) {
     throw new Error(`PFP URL did not return an image: ${contentType}`);
   }
 
+  const contentLength = Number(response.headers.get("content-length"));
+  const maxBytes = Math.max(1, config.maxPfpDownloadBytes);
+
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new Error(`PFP image is too large: ${contentLength} bytes`);
+  }
+
+  const body = Buffer.from(await response.arrayBuffer());
+
+  if (body.byteLength > maxBytes) {
+    throw new Error(`PFP image is too large: ${body.byteLength} bytes`);
+  }
+
   return {
-    body: Buffer.from(await response.arrayBuffer()),
+    body,
     contentType
   };
+}
+
+async function validateFetchableUrl(value: string) {
+  const url = new URL(value);
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("PFP URL must use http or https");
+  }
+
+  if (url.username || url.password) {
+    throw new Error("PFP URL must not include credentials");
+  }
+
+  if (isBlockedHostname(url.hostname)) {
+    throw new Error("PFP URL host is not allowed");
+  }
+
+  const addresses = await lookup(url.hostname, { all: true, verbatim: true });
+
+  if (addresses.some((entry) => isPrivateAddress(entry.address))) {
+    throw new Error("PFP URL resolved to a private address");
+  }
+
+  return url;
+}
+
+function isRedirect(status: number) {
+  return status >= 300 && status < 400;
+}
+
+function isBlockedHostname(hostname: string) {
+  const normalized = hostname.toLowerCase().replace(/\.$/, "");
+  return normalized === "localhost" || normalized.endsWith(".localhost");
+}
+
+function isPrivateAddress(address: string) {
+  if (net.isIPv4(address)) {
+    const [a, b] = address.split(".").map(Number);
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      a >= 224
+    );
+  }
+
+  if (net.isIPv6(address)) {
+    const normalized = address.toLowerCase();
+    return (
+      normalized === "::1" ||
+      normalized === "::" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:") ||
+      normalized.startsWith("::ffff:127.") ||
+      normalized.startsWith("::ffff:10.") ||
+      normalized.startsWith("::ffff:192.168.")
+    );
+  }
+
+  return true;
 }
 
 async function readLatest(fidDir: string): Promise<LatestPfp | undefined> {

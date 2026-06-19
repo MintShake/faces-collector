@@ -1,14 +1,29 @@
 import { list } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { clampNumber, corsHeaders, publicApiHeaders } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const limited = await rateLimit(request, {
+    namespace: "blob:list",
+    limit: 20,
+    windowSeconds: 60
+  });
+
+  if (limited) {
+    return limited;
+  }
+
   const url = new URL(request.url);
   const prefix = url.searchParams.get("prefix") ?? "";
-  const limit = clampNumber(url.searchParams.get("limit"), 1, 1000, 100);
+  const limit = clampNumber(url.searchParams.get("limit"), 1, 200, 100);
   const cursor = url.searchParams.get("cursor") ?? undefined;
+
+  if (!isAllowedPrefix(prefix)) {
+    return NextResponse.json({ ok: false, error: "prefix is not allowed" }, { status: 400, headers: corsHeaders() });
+  }
 
   try {
     const page = await list({ prefix, limit, cursor });
@@ -36,4 +51,12 @@ export async function GET(request: Request) {
 
 export function OPTIONS() {
   return new Response(null, { status: 204, headers: corsHeaders() });
+}
+
+function isAllowedPrefix(prefix: string) {
+  return (
+    prefix === "" ||
+    prefix === "pfps/" ||
+    /^pfps\/\d+\/?$/.test(prefix)
+  );
 }
