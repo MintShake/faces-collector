@@ -20,8 +20,8 @@ export async function GET(request: Request) {
   }
 
   const [recentPage, topPage, likeSummary] = await Promise.all([
-    getPfpGalleryPage({ sort: "newest", limit: 14, imagesPerFid: 1, order: "desc" }),
-    getPfpGalleryPage({ sort: "count", limit: 8, imagesPerFid: 5, order: "desc" }),
+    getPfpGalleryPage({ sort: "newest", limit: 10, imagesPerFid: 1, order: "desc" }),
+    getPfpGalleryPage({ sort: "count", limit: 6, imagesPerFid: 4, order: "desc" }),
     getLikeSummaryMap()
   ]);
   const stats = {
