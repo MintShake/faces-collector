@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPfpGalleryPage } from "@/lib/pfps";
 import { corsHeaders, logApiRequest, publicApiHeaders } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { getLikeSummaryMap } from "@/lib/social";
 
 export const dynamic = "force-dynamic";
 
@@ -18,14 +19,15 @@ export async function GET(request: Request) {
     return limited;
   }
 
-  const [recentPage, topPage] = await Promise.all([
+  const [recentPage, topPage, likeSummary] = await Promise.all([
     getPfpGalleryPage({ sort: "newest", limit: 14, imagesPerFid: 1, order: "desc" }),
-    getPfpGalleryPage({ sort: "count", limit: 8, imagesPerFid: 5, order: "desc" })
+    getPfpGalleryPage({ sort: "count", limit: 8, imagesPerFid: 5, order: "desc" }),
+    getLikeSummaryMap()
   ]);
   const stats = {
     totalFids: recentPage.totalFids || topPage.totalFids,
     totalImages: recentPage.totalImages || topPage.totalImages,
-    totalLikes: 0
+    totalLikes: Object.values(likeSummary).reduce((sum, like) => sum + like.count, 0)
   };
   const recentChanges = recentPage.tiles
     .map((tile) => ({ fid: tile.fid, profile: tile.profile, image: tile.images[0] }))
