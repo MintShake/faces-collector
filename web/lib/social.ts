@@ -99,6 +99,7 @@ const ACTIVITY_LOG_KEY = "social/activity-log.json";
 const ACTIVITY_LOG_MAX = 60;
 const MODERATION_QUEUE_KEY = "social/moderation/pending-reports.json";
 const MODERATION_QUEUE_CACHE_TTL_MS = 30_000;
+const STORAGE_READ_TIMEOUT_MS = 1_500;
 let moderationQueueCache:
   | {
       expiresAt: number;
@@ -413,7 +414,10 @@ async function getJson<T>(key: string): Promise<T | undefined> {
       new GetObjectCommand({
         Bucket: storage.bucket,
         Key: key
-      })
+      }),
+      {
+        abortSignal: AbortSignal.timeout(STORAGE_READ_TIMEOUT_MS)
+      }
     );
     const body = await response.Body?.transformToString();
 

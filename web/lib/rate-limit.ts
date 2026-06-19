@@ -13,6 +13,7 @@ type MemoryBucket = {
 };
 
 const memoryBuckets = new Map<string, MemoryBucket>();
+const REDIS_RATE_LIMIT_TIMEOUT_MS = 500;
 let cachedRedis: Redis | undefined;
 
 export async function rateLimit(request: Request, options: RateLimitOptions) {
@@ -25,20 +26,35 @@ export async function rateLimit(request: Request, options: RateLimitOptions) {
   let resetAt = now + windowMs;
 
   if (redis) {
-    const count = await redis.incr(key);
+    const count = await withTimeout(
+      redis.incr(key),
+      REDIS_RATE_LIMIT_TIMEOUT_MS,
+      "redis rate limit increment timed out"
+    ).catch((error) => {
+      console.warn(error instanceof Error ? error.message : "redis rate limit increment failed");
+      return undefined;
+    });
 
-    if (count === 1) {
-      await redis.expire(key, options.windowSeconds);
+    if (typeof count === "number") {
+      if (count === 1) {
+        await withTimeout(
+          redis.expire(key, options.windowSeconds),
+          REDIS_RATE_LIMIT_TIMEOUT_MS,
+          "redis rate limit expiry timed out"
+        ).catch((error) => {
+          console.warn(error instanceof Error ? error.message : "redis rate limit expiry failed");
+        });
+      }
+
+      remaining = Math.max(0, options.limit - count);
+      resetAt = now + windowMs;
+
+      if (count > options.limit) {
+        return limitedResponse(options, remaining, resetAt);
+      }
+
+      return undefined;
     }
-
-    remaining = Math.max(0, options.limit - count);
-    resetAt = now + windowMs;
-
-    if (count > options.limit) {
-      return limitedResponse(options, remaining, resetAt);
-    }
-
-    return undefined;
   }
 
   const current = memoryBuckets.get(key);
@@ -118,4 +134,13 @@ function hashString(value: string) {
   }
 
   return (hash >>> 0).toString(36);
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), timeoutMs);
+    })
+  ]);
 }

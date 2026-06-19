@@ -47,6 +47,7 @@ export function topBadge(badgeIds: string[]): string | undefined {
 }
 
 const SUMMARY_CACHE_TTL_MS = 60_000;
+const STORAGE_READ_TIMEOUT_MS = 1_500;
 let summaryCache: { expiresAt: number; promise: Promise<Record<string, Array<{ id: string; label: string }>>> } | undefined;
 
 export async function getBadgeSummary(): Promise<Record<string, Array<{ id: string; label: string }>>> {
@@ -154,7 +155,12 @@ async function getJson<T>(key: string): Promise<T | undefined> {
   if (!storage) return undefined;
 
   try {
-    const response = await storage.send(new GetObjectCommand({ Bucket: storageBucket(), Key: key }));
+    const response = await storage.send(
+      new GetObjectCommand({ Bucket: storageBucket(), Key: key }),
+      {
+        abortSignal: AbortSignal.timeout(STORAGE_READ_TIMEOUT_MS)
+      }
+    );
     const body = await response.Body?.transformToString();
     return body ? JSON.parse(body) as T : undefined;
   } catch (error) {

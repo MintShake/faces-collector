@@ -61,6 +61,7 @@ type GalleryOptions = {
   order?: "asc" | "desc";
   query?: string;
   minImages?: number;
+  includeProfiles?: boolean;
 };
 
 export type PfpGalleryPage = {
@@ -86,7 +87,7 @@ const blobListCache = new Map<string, BlobListCacheEntry>();
 const GALLERY_INDEX_PATH = "state/index/gallery.json";
 const GALLERY_INDEX_CACHE_TTL_MS = 60_000;
 const STORAGE_READ_TIMEOUT_MS = 2_000;
-const PROFILE_ENRICH_TIMEOUT_MS = 1_200;
+const PROFILE_READ_TIMEOUT_MS = 350;
 
 type GalleryIndexImage = {
   id: string;
@@ -188,15 +189,14 @@ export async function getFidProfile(fid: number): Promise<FidProfile | undefined
   }
 
   try {
-    const object = await withTimeout(
-      s3.client.send(
-        new GetObjectCommand({
-          Bucket: s3.bucket,
-          Key: `state/fids/${fid}.json`
-        })
-      ),
-      STORAGE_READ_TIMEOUT_MS,
-      `profile ${fid} read timed out after ${STORAGE_READ_TIMEOUT_MS}ms`
+    const object = await s3.client.send(
+      new GetObjectCommand({
+        Bucket: s3.bucket,
+        Key: `state/fids/${fid}.json`
+      }),
+      {
+        abortSignal: AbortSignal.timeout(PROFILE_READ_TIMEOUT_MS)
+      }
     );
     const text = await object.Body?.transformToString();
 
@@ -571,14 +571,6 @@ async function getBlobPfpGallery(options: GalleryOptions & { fid?: number } = {}
 
   // Bulk-enrich tiles missing a name — only for tiles on this page, skip during build.
   const isBuilding = process.env.NEXT_PHASE === "phase-production-build";
-  if (!isBuilding) {
-    const unnamed = withProfiles
-      .filter((t) => !t.profile?.username && !t.profile?.displayName);
-    if (unnamed.length > 0) {
-      void enrichDisplayedProfiles(unnamed.map((t) => t.fid));
-    }
-  }
-
   return {
     tiles: withProfiles,
     totalFids,
@@ -641,22 +633,15 @@ async function getIndexedPfpGallery(options: GalleryOptions = {}): Promise<PfpGa
   const limited = options.limit ? filtered.slice(offset, offset + options.limit) : filtered.slice(offset);
   const totalFids = filtered.length;
   const totalImages = filtered.reduce((sum, tile) => sum + tile.imageCount, 0);
-  const withProfiles = await Promise.all(
-    limited.map(async (tile) => {
-      if ((tile as FidTile).profile) return tile as FidTile;
-      const profile = await getFidProfile(tile.fid);
-      return profile ? { ...tile, profile } : (tile as FidTile);
-    })
-  );
-
-  const isBuilding = process.env.NEXT_PHASE === "phase-production-build";
-  if (!isBuilding) {
-    const unnamed = withProfiles
-      .filter((t) => !t.profile?.username && !t.profile?.displayName);
-    if (unnamed.length > 0) {
-      void enrichDisplayedProfiles(unnamed.map((t) => t.fid));
-    }
-  }
+  const withProfiles = options.includeProfiles === false
+    ? limited as FidTile[]
+    : await Promise.all(
+        limited.map(async (tile) => {
+          if ((tile as FidTile).profile) return tile as FidTile;
+          const profile = await getFidProfile(tile.fid);
+          return profile ? { ...tile, profile } : (tile as FidTile);
+        })
+      );
 
   return {
     tiles: withProfiles,
@@ -714,15 +699,14 @@ async function fetchGalleryIndexUncached(): Promise<GalleryIndex | undefined> {
 
   if (s3) {
     try {
-      const object = await withTimeout(
-        s3.client.send(
-          new GetObjectCommand({
-            Bucket: s3.bucket,
-            Key: GALLERY_INDEX_PATH
-          })
-        ),
-        STORAGE_READ_TIMEOUT_MS,
-        `gallery index read timed out after ${STORAGE_READ_TIMEOUT_MS}ms`
+      const object = await s3.client.send(
+        new GetObjectCommand({
+          Bucket: s3.bucket,
+          Key: GALLERY_INDEX_PATH
+        }),
+        {
+          abortSignal: AbortSignal.timeout(STORAGE_READ_TIMEOUT_MS)
+        }
       );
       const text = await object.Body?.transformToString();
       const parsed = text ? (JSON.parse(text) as GalleryIndex) : undefined;
@@ -755,19 +739,6 @@ async function fetchGalleryIndexUncached(): Promise<GalleryIndex | undefined> {
   const text = await new Response(blob.stream).text();
   const parsed = JSON.parse(text) as GalleryIndex;
   return isGalleryIndex(parsed) ? parsed : undefined;
-}
-
-async function enrichDisplayedProfiles(fids: number[]) {
-  try {
-    await withTimeout(
-      bulkEnrichProfiles(fids),
-      PROFILE_ENRICH_TIMEOUT_MS,
-      `profile enrichment timed out after ${PROFILE_ENRICH_TIMEOUT_MS}ms`
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown profile enrichment error";
-    console.warn(`Could not enrich displayed profiles: ${message}`);
-  }
 }
 
 async function getScoreIndex(): Promise<Record<string, number>> {
@@ -1073,13 +1044,4 @@ function storedAtFromFilename(filename: string) {
     /^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/,
     "$1T$2:$3:$4.$5Z"
   );
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error(message)), timeoutMs);
-    })
-  ]);
 }

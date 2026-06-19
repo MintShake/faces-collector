@@ -20,8 +20,8 @@ export async function GET(request: Request) {
 
   const [stats, recentPage, topPage] = await Promise.all([
     getPfpStats(),
-    getPfpGalleryPage({ sort: "newest", limit: 14, imagesPerFid: 1, order: "desc" }),
-    getPfpGalleryPage({ sort: "count", limit: 8, imagesPerFid: 5, order: "desc" })
+    getPfpGalleryPage({ sort: "newest", limit: 14, imagesPerFid: 1, order: "desc", includeProfiles: false }),
+    getPfpGalleryPage({ sort: "count", limit: 8, imagesPerFid: 5, order: "desc", includeProfiles: false })
   ]);
   const recentChanges = recentPage.tiles
     .map((tile) => ({ fid: tile.fid, profile: tile.profile, image: tile.images[0] }))
