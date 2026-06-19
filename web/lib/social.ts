@@ -97,6 +97,13 @@ type ActivityLog = {
 const ACTIVITY_LOG_KEY = "social/activity-log.json";
 const ACTIVITY_LOG_MAX = 60;
 const MODERATION_QUEUE_KEY = "social/moderation/pending-reports.json";
+const MODERATION_QUEUE_CACHE_TTL_MS = 30_000;
+let moderationQueueCache:
+  | {
+      expiresAt: number;
+      promise: Promise<Record<string, PendingReport>>;
+    }
+  | undefined;
 
 const LIKE_SUMMARY_CACHE_TTL_MS = 10_000;
 let likeSummaryCache:
@@ -235,8 +242,24 @@ export async function getRegisteredUser(fid: number) {
 }
 
 export async function getPendingReportMap() {
-  const queue = await safeGetJson<ModerationQueue>(MODERATION_QUEUE_KEY);
-  return queue?.images ?? {};
+  const now = Date.now();
+
+  if (moderationQueueCache && moderationQueueCache.expiresAt > now) {
+    return moderationQueueCache.promise;
+  }
+
+  const promise = readPendingReportMap();
+  moderationQueueCache = {
+    expiresAt: now + MODERATION_QUEUE_CACHE_TTL_MS,
+    promise
+  };
+
+  try {
+    return await promise;
+  } catch {
+    moderationQueueCache = undefined;
+    return {};
+  }
 }
 
 export async function getPendingReportedImageIds() {
@@ -270,6 +293,7 @@ export async function addPendingImageReport(input: {
   queue.updatedAt = now;
 
   await putJson(MODERATION_QUEUE_KEY, queue);
+  moderationQueueCache = undefined;
   return queue.images[input.imageId];
 }
 
@@ -295,7 +319,18 @@ export async function reviewPendingImageReport(input: {
 
   queue.updatedAt = now;
   await putJson(MODERATION_QUEUE_KEY, queue);
+  moderationQueueCache = undefined;
   return queue.images[input.imageId];
+}
+
+async function readPendingReportMap() {
+  const timeout = new Promise<Record<string, PendingReport>>((resolve) => {
+    setTimeout(() => resolve({}), 1_500);
+  });
+  const read = safeGetJson<ModerationQueue>(MODERATION_QUEUE_KEY)
+    .then((queue) => queue?.images ?? {});
+
+  return Promise.race([read, timeout]);
 }
 
 export async function notifyPfpOwner(input: {
